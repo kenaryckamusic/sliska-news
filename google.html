@@ -1,0 +1,11 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Logowanie Google – Śliska News</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#555;background:#f4f5f7}</style></head>
+<body><p id="t">Logowanie…</p>
+<script>
+(function () {
+  var h = new URLSearchParams(location.hash.slice(1));
+  var msg = { type: 'sliska-google', id_token: h.get('id_token') || '', state: h.get('state') || '', error: h.get('error') || '' };
+  try { if (window.opener) { window.opener.postMessage(msg, location.origin); setTimeout(function () { window.close(); }, 200); return; } } catch (e) { /* dalej */ }
+  document.getElementById('t').textContent = msg.id_token ? 'Zalogowano. Możesz zamknąć to okno.' : 'Logowanie przerwane. Zamknij to okno i spróbuj ponownie.';
+})();
+</script></body></html>
