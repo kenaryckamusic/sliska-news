@@ -3035,7 +3035,7 @@ function commentItemHtml(c, kids) {
     ? (Cmt.reporting === c.id
       ? `<span class="cmt-why"><em>Powód:</em>${[['spam', 'Spam'], ['obraza', 'Obraza'], ['spoiler', 'Spoiler']].map(([v, l]) => `<button type="button" class="cmt-act" data-cmt="report-do" data-id="${c.id}" data-reason="${v}">${l}</button>`).join('')}<button type="button" class="cmt-act" data-cmt="report-cancel" data-id="${c.id}">Anuluj</button></span>`
       : `<button type="button" class="cmt-act" data-cmt="report" data-id="${c.id}">Zgłoś</button>`) : '';
-  const adm = admin ? `<button type="button" class="cmt-act" data-cmt="admin-delete" data-id="${c.id}">Usuń</button>` : '';
+  const adm = canMod() && !c.mine ? `<button type="button" class="cmt-act" data-cmt="admin-delete" data-id="${c.id}">Usuń</button>` : '';
   const canReply = !Cmt.off && c.status === 'ok';
   const reply = canReply ? `<button type="button" class="cmt-act" data-cmt="reply" data-id="${c.id}">Odpowiedz</button>` : '';
   const link = c.status === 'ok' ? `<button type="button" class="cmt-act" data-cmt="link" data-id="${c.id}">Link</button>` : '';
