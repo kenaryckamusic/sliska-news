@@ -742,9 +742,11 @@ async function updatePushButton() {
   b.title = on ? 'Powiadomienia włączone – kliknij, aby wyłączyć' : 'Włącz powiadomienia o nowych artykułach';
 }
 
-/** Przy każdym wejściu na stronę: prośba o włączenie powiadomień (tylko gdy ktoś jeszcze ich nie włączył). */
+/** Prośba o włączenie powiadomień (tylko gdy ktoś jeszcze ich nie włączył) – najwyżej raz na 3 dni. */
+const PUSH_ASK_KEY = 'sliska_push_ask', PUSH_ASK_EVERY = 3 * 24 * 3600e3;
 async function maybeAskPush() {
   try {
+    try { if (Date.now() - Number(localStorage.getItem(PUSH_ASK_KEY) || 0) < PUSH_ASK_EVERY) return; } catch { /* ignoruj */ }
     if (typeof Readers !== 'undefined' && Readers.loading && !maybeAskPush.retried) { maybeAskPush.retried = true; setTimeout(maybeAskPush, 3500); return; }
     if (isStaffViewer()) return;               // redakcja i Właściciel nie dostają prośby o powiadomienia
     const iosBrowser = Push.isIos() && !Push.standalone() && !Push.supported();
@@ -759,6 +761,7 @@ async function maybeAskPush() {
     $('#push-ask-ios').hidden = !iosBrowser;
     $('#push-ask-yes').hidden = iosBrowser;
     $('#push-ask-text').hidden = iosBrowser;
+    try { localStorage.setItem(PUSH_ASK_KEY, String(Date.now())); } catch { /* ignoruj */ }   // „Nie teraz” = kolejna prośba za 3 dni
     openModal('push-modal');
   } catch { /* brak popupu */ }
 }
@@ -1431,7 +1434,7 @@ function tagsBlockHtml(a) {
 
 /** Adres do udostępniania artykułu. */
 function articleUrl(a) {
-  if (CONFIG.OG_WORKER) return 'https://sliska.pl/news/a/' + encodeURIComponent(a.id);   // podgląd linku (Worker) – przekierowuje do czytnika
+  if (CONFIG.OG_WORKER) return 'https://news.sliska.pl/a/' + encodeURIComponent(a.id);   // podgląd linku (Worker przez Vercel) – przekierowuje do czytnika
   return location.href.split('#')[0] + '#/artykul/' + encodeURIComponent(a.id);
 }
 
