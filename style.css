@@ -3011,3 +3011,54 @@ html.rail-on.is-dev:not(.dev-logo-off) body.rail-c #logo::after { content: "DEV"
   html.rail-on .site-header .logo { padding: 2px 8px 4px; }
   html.rail-on .site-header .logo svg { width: 100%; height: auto; }
 }
+
+/* Pasek PILNE: tytuły wyśrodkowane w pasku, gdy się mieszczą (przewijanie bez zmian) – v20261103c */
+.ticker-track:not(.is-scrolling) { justify-content: center; }
+.ticker:has(.ticker-track:not(.is-scrolling)) { -webkit-mask-image: none; mask-image: none; }
+
+/* ===== Szlify v20261103j ===== */
+/* Tablet i małe okna (861–1099 px): menu przewija się w poziomie zamiast wypychać wyszukiwarkę i przyciski poza ekran */
+@media (min-width: 861px) and (max-width: 1099px) {
+  .site-header .header-top { min-width: 0; }
+  .site-header .main-nav { flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; flex-wrap: nowrap;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
+  .site-header .main-nav::-webkit-scrollbar { display: none; }
+  .site-header .main-nav .nav-link { flex: none; }
+  .site-header .search, .site-header #search-box { flex: 0 0 190px; min-width: 0; }
+  .site-header .auth { flex: none; }
+}
+/* Strony prawne / artykuł na telefonie: przycisk „wstecz” nie jest ściskany, zakładki przewijają się palcem */
+@media (max-width: 860px) {
+  .article-top > .btn:first-child { flex: none; }
+  .article-top .top-actions { min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 2px; }
+  .article-top .top-actions::-webkit-scrollbar { display: none; }
+  .article-top .top-actions > * { flex: none; }
+}
+
+/* ===== Poprawki v20261104b ===== */
+/* Odpowiedź w komentarzach: „@nazwa” na początku treści zamiast osobnej linii ↪ */
+.cmt-mention { color: var(--accent); font-weight: 700; font-size: .95em; white-space: nowrap; }
+.cmt-mention::before { content: "↪"; display: inline-block; margin-right: 4px; font-weight: 600; opacity: .75; }
+.cmt-body p { overflow-wrap: break-word; }
+.cmt-head { flex-wrap: wrap; row-gap: 2px; }
+.cmt-head time { white-space: nowrap; }
+/* Plakietka roli + korona: równo w jednej linii (komentarze, profil, konto) */
+.rb { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; }
+.rb .crown { margin-left: 0; vertical-align: 0; }
+.up-meta .rb { line-height: 1; }
+.up-meta .rb .cmt-badge { margin: 0; }
+.acc-chip.is-crown { display: inline-flex; align-items: center; gap: 6px; }
+.acc-chip .crown { margin: 0; vertical-align: 0; }
+.acc-chip .crown svg { width: 16px; height: 16px; }
+.up-meta > * { margin: 0; }
+/* Wątek odpowiedzi: pionowa linia równo pod środkiem awatara komentarza nadrzędnego, odpowiedzi bliżej (v20261104d) */
+.cmt-replies { margin-left: calc(-1 * (34px + 10px) + 17px - 1px); padding-left: 18px; border-left: 2px solid var(--border); }
+.cmt-replies .cmt-replies { margin-left: calc(-1 * (34px + 10px) + 17px - 1px); }
+@media (max-width: 640px) {
+  .cmt-replies, .cmt-replies .cmt-replies { margin-left: calc(-1 * (26px + 9px) + 13px - 0.5px); padding-left: 14px; border-left-width: 1.5px; }
+}
+/* linia wątku zaczyna się tuż pod awatarem komentarza nadrzędnego i biegnie do ostatniej odpowiedzi */
+.cmt:has(> .cmt-body > .cmt-replies) { position: relative; }
+.cmt:has(> .cmt-body > .cmt-replies)::before { content: ""; position: absolute; left: 16px; top: 42px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--border); }
+.cmt-replies, .cmt-replies .cmt-replies { border-left: 0; }
+@media (max-width: 640px) { .cmt:has(> .cmt-body > .cmt-replies)::before { left: 12px; top: 32px; width: 1.5px; } }

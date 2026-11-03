@@ -5,6 +5,22 @@
     {
       "source": "/spot",
       "destination": "/spot.html"
+    },
+    {
+      "source": "/a/:id",
+      "destination": "https://api.sliska.pl/a/:id"
+    },
+    {
+      "source": "/og/:file",
+      "destination": "https://api.sliska.pl/og/:file"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "https://api.sliska.pl/sitemap.xml"
+    },
+    {
+      "source": "/rss.xml",
+      "destination": "https://api.sliska.pl/rss.xml"
     }
   ],
   "headers": [

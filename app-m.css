@@ -154,3 +154,16 @@ html.is-embed body { padding-left: 0 !important; }
 /* zoom wyłączony (aplikacja i strona na dotyku) */
 html { -webkit-text-size-adjust: 100%; }
 body { touch-action: manipulation; }
+
+/* ===== Telefon: zwarta stopka i mniej pustego miejsca nad nią (v20261104a) ===== */
+@media (max-width: 860px) {
+  .layout { padding-bottom: 8px; }
+  .layout > .app, .app { padding-bottom: 4px; }
+  .site-footer { margin-top: 12px; padding-bottom: 0; }
+  .site-footer .footer-inner { gap: 8px; padding-top: 14px; padding-bottom: 64px; }
+  .footer-links { gap: 0 14px; }
+  .footer-links a { padding: 5px 0; font-size: .84rem; }
+  .footer-links .footer-ig { flex: 0 0 auto; width: auto; margin: 0 auto 4px; padding: 7px 16px; border-radius: 999px; font-size: .86rem; }
+  .footer-links::before { margin-bottom: 2px; }
+  .footer-inner > span:first-child { padding-top: 10px; margin-top: 2px; font-size: .72rem; }
+}

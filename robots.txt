@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /google.html
+
+Sitemap: https://news.sliska.pl/sitemap.xml

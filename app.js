@@ -54,14 +54,10 @@ const CONFIG = {
 
 };
 
-const CATEGORIES = ['Muzyka', 'Recenzje', 'Kontrowersje', 'Dramy', 'Inne'];
-const CATEGORY_INFO = {
-  'Muzyka': 'Premiery, wywiady, koncerty i wszystko, co dzieje się na scenie.',
-  'Recenzje': 'Oceny płyt, singli i EP – z rankingiem najlepszych.',
-  'Kontrowersje': 'Afery, skandale i sprawy, o których się dyskutuje.',
-  'Dramy': 'Konflikty, beefy i dramy ze świata rozrywki.',
-  'Inne': 'Wszystko, co nie mieści się w pozostałych działach.'
-};
+/* Kategorie i tagi: słownik w taxonomy.js (wspólny z edytorem). Awaryjnie – lista wbudowana. */
+const TAX = window.SliskaTax || null;
+const CATEGORIES = TAX ? TAX.CATEGORIES : ['Muzyka', 'Recenzje', 'Dramy', 'Gwiazdy', 'Polityka', 'Inne'];
+const CATEGORY_INFO = TAX ? TAX.INFO : {};
 const ALL = 'Wszystkie';
 
 /* =========================================================
@@ -103,8 +99,8 @@ const Utils = {
 
   /** Lista kategorii artykułu (obsługuje stare artykuły z jedną kategorią). */
   catsOf(a) {
-    if (a && Array.isArray(a.categories) && a.categories.length) return a.categories;
-    return a && a.category ? [a.category] : [];
+    const list = a && Array.isArray(a.categories) && a.categories.length ? a.categories : a && a.category ? [a.category] : [];
+    return TAX ? TAX.normCats(list) : list;           // stare „Kontrowersje” → „Dramy”
   },
 
   /** Bez wielkich liter i polskich znaków („Śliska” → „sliska”). */
@@ -119,7 +115,7 @@ const Utils = {
       `<a class="chip" href="#/kategoria/${encodeURIComponent(c)}">${this.esc(c)}</a>`).join('') + nw + st + '</span>';
   },
 
-  tagsOf(a) { return a && Array.isArray(a.tags) ? a.tags : []; },
+  tagsOf(a) { const t = a && Array.isArray(a.tags) ? a.tags : []; return TAX ? TAX.normTags(t) : t; },   // jeden styl tagów: „tamarakenarycka”
 
   same(a, b) { return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase(); },
 
@@ -166,7 +162,7 @@ const Utils = {
    */
 
   placeholder(category) {
-    const hues = { 'Muzyka': 265, 'Kontrowersje': 350, 'Dramy': 330, 'Recenzje': 28, 'Inne': 205 };
+    const hues = { 'Muzyka': 265, 'Kontrowersje': 350, 'Dramy': 350, 'Recenzje': 28, 'Gwiazdy': 320, 'Polityka': 220, 'Inne': 205 };
     const hue = hues[category] ?? 200;
     // Płaski kolor kategorii, cienka ramka i duża obrysowa gwiazda (spójnie z grafikami na social media)
     const pts = Array.from({ length: 10 }, (_, i) => { const r = i % 2 ? 120 : 300, a = -Math.PI / 2 + i * Math.PI / 5; return (Math.cos(a) * r + 980).toFixed(1) + ',' + (Math.sin(a) * r + 300).toFixed(1); }).join(' ');
@@ -953,8 +949,8 @@ function currentRoute() {
   if (['edytor', 'szkic', 'panel', 'ustawienia'].includes(parts[0])) return { name: 'staff' };   // stare adresy narzędzi redakcji
   if (parts[0] === 'konto') return { name: 'account', tab: parts[1] || '' };
   if (parts[0] === 'uzytkownik' && parts[1]) return { name: 'user', pub: decodeURIComponent(parts[1]).replace(/[^A-Za-z0-9]/g, '') };
-  if (parts[0] === 'kategoria' && parts[1]) return { name: 'home', category: decodeURIComponent(parts[1]) };
-  if (parts[0] === 'tag' && parts[1]) return { name: 'home', tag: decodeURIComponent(parts[1]) };
+  if (parts[0] === 'kategoria' && parts[1]) { const c = decodeURIComponent(parts[1]); return { name: 'home', category: (TAX && TAX.CAT_ALIAS[c]) || c }; }
+  if (parts[0] === 'tag' && parts[1]) { const t = decodeURIComponent(parts[1]); return { name: 'home', tag: (TAX && TAX.normTag(t)) || t }; }
   if (parts[0] === 'artysta' && parts[1]) return { name: 'home', artist: decodeURIComponent(parts[1]) };
   if (parts[0] === 'redaktor' && parts[1]) return { name: 'home', author: decodeURIComponent(parts[1]) };
   if (parts[0] === 'redakcja' || parts[0] === 'redaktorzy') return { name: 'authors' };
@@ -3020,7 +3016,8 @@ function cmtTextHtml(c) {
   let t = c.text;
   if (long && !open) { t = t.slice(0, CMT_CUT).replace(/\s+\S*$/, ''); t = t.replace(/[\s.,;:!?-]+$/, '') + '…'; }
   const body = Utils.esc(t).replace(/\n/g, '<br>');
-  return `<p>${body}</p>${long ? `<button type="button" class="cmt-act cmt-toggle" data-cmt="toggle" data-id="${c.id}">${open ? 'Pokaż mniej' : 'Pokaż więcej'}</button>` : ''}`;
+  const to = c.to ? `<span class="cmt-mention" title="Odpowiedź na komentarz: ${Utils.esc(c.to)}">@${Utils.esc(c.to)}</span>` : '';   // odpowiedź: nazwa na początku treści
+  return `<p>${to ? to + ' ' : ''}${body}</p>${long ? `<button type="button" class="cmt-act cmt-toggle" data-cmt="toggle" data-id="${c.id}">${open ? 'Pokaż mniej' : 'Pokaż więcej'}</button>` : ''}`;
 }
 
 function commentItemHtml(c, kids) {
@@ -3039,7 +3036,7 @@ function commentItemHtml(c, kids) {
   return `<li class="cmt${c.status === 'pending' ? ' is-pending' : ''}" id="c-${c.id}">
     <div class="cmt-av avatar">${readerAvatar(c.name, c.av, c.u)}</div>
     <div class="cmt-body">
-      <div class="cmt-head">${c.u ? `<a class="cmt-name" href="#/uzytkownik/${Utils.esc(c.u)}"><b>${Utils.esc(c.name)}</b></a>` : `<b>${Utils.esc(c.name)}</b>`}${roleBadge(c)}${c.to ? `<span class="cmt-to">↪ ${Utils.esc(c.to)}</span>` : ''}<time>${ago(c.at)}</time>${c.edited ? '<span class="cmt-edited">· edytowano</span>' : ''}</div>
+      <div class="cmt-head">${c.u ? `<a class="cmt-name" href="#/uzytkownik/${Utils.esc(c.u)}"><b>${Utils.esc(c.name)}</b></a>` : `<b>${Utils.esc(c.name)}</b>`}${roleBadge(c)}<time>${ago(c.at)}</time>${c.edited ? '<span class="cmt-edited">· edytowano</span>' : ''}</div>
       ${Cmt.editing === c.id ? `<div class="cmt-edit"><textarea id="cmt-edit-text" rows="3" maxlength="${isOwnerRole() ? 20000 : 600}">${Utils.esc(c.text)}</textarea><div class="cmt-row"><button type="button" class="btn btn-primary btn-sm" data-cmt="edit-save" data-id="${c.id}">Zapisz</button><button type="button" class="btn btn-sm" data-cmt="edit-cancel" data-id="${c.id}">Anuluj</button><small>Poprawki możliwe do 5 minut od publikacji.</small></div></div>` : cmtTextHtml(c)}
       ${c.status === 'pending' ? '<small class="cmt-wait">Czeka na zatwierdzenie przez redakcję</small>' : ''}
       <div class="cmt-actions">${reply}${link}${edit}${own}${rep}${adm}</div>
@@ -3698,8 +3695,9 @@ const CAT_ICONS = {
   'Wszystkie': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
   'Muzyka': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>',
   'Recenzje': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></svg>',
-  'Kontrowersje': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2-4 .3 1.5 1 2 1.8 2.2C11 8.5 11 5.5 12 3z"/></svg>',
-  'Dramy': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M12 8v4M12 15.5v.01"/></svg>',
+  'Dramy': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2-4 .3 1.5 1 2 1.8 2.2C11 8.5 11 5.5 12 3z"/></svg>',
+  'Gwiazdy': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></svg>',
+  'Polityka': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V10M9.5 21V10M14.5 21V10M19 21V10M2.5 10 12 4l9.5 6z"/></svg>',
   'Inne': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg>'
 };
 function buildCategoryNav() {
@@ -4002,8 +4000,16 @@ function updateScrollUi() {
   const isArticle = currentRoute().name === 'article';
   bar.hidden = !isArticle;
   if (isArticle) {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    bar.style.width = (max > 0 ? Math.min(100, (y / max) * 100) : 0) + '%';
+    // postęp czytania liczony od początku do końca TEKSTU artykułu (bez komentarzy, reakcji i polecanych)
+    const art = $('#view-article .article'), body = $('#view-article .article-body') || art;
+    let p = 0;
+    if (art && body) {
+      const top = art.getBoundingClientRect().top + y;
+      const end = body.getBoundingClientRect().bottom + y;          // koniec treści
+      const span = end - top - window.innerHeight * 0.6;            // 100% = koniec tekstu widoczny w dolnej części ekranu
+      p = span > 0 ? (y - top + window.innerHeight * 0.15) / span : (y + window.innerHeight >= end ? 1 : 0);
+    }
+    bar.style.width = (Math.max(0, Math.min(1, p)) * 100) + '%';
   }
 }
 

@@ -329,3 +329,7 @@ html.is-mac-app .sp-label { letter-spacing: .06em; }
   .sp-top.sp-house .ah-box[data-f="long"], .sp-strip.sp-house .ah-box[data-f="long"] { padding: 34px 12px 10px 14px !important; align-items: flex-end !important; gap: 10px; }
   .sp-top.sp-house .ah-box[data-f="long"] .ah-t, .sp-strip.sp-house .ah-box[data-f="long"] .ah-t { font-size: 14px !important; line-height: 1.18; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 }
+
+/* Grafika reklamy w siatce: karta jest rozciągana do wysokości rzędu – grafika zawsze w całości (bez ucinania boków), v20261104b */
+.sp-img-card > img, .sp-img-card picture img { object-fit: contain; object-position: center top; }
+.sp-img-card { background: #1d1d1f; }
