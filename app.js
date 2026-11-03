@@ -2,10 +2,10 @@
    Śliska News – czytnik (tylko funkcje czytelnika)
    Pisanie i moderacja redakcji: hub dev.sliska.pl (/studio, /poczta, /reklamy).
    Struktura pliku:
-     1. CONFIG            – ustawienia (Firebase, limity)
+     1. CONFIG            – ustawienia (API, limity, dane prawne)
      2. Utils / Sanitizer – funkcje pomocnicze i czyszczenie HTML
      3. Dane startowe     – artykuły demonstracyjne (tylko tryb localStorage)
-     4. DataService       – odczyt artykułów (Firebase Firestore / localStorage) i zgłoszenia
+     4. DataService       – odczyt artykułów (API Śliskiej / localStorage) i zgłoszenia
      5. Aplikacja (UI)    – widoki, routing, komentarze, konta czytelników
    ========================================================= */
 'use strict';
@@ -21,32 +21,20 @@ const CONFIG = {
 
   // Adres, pod którym stoi strona (z ukośnikiem na końcu). Służy do linków do osobnych stron artykułów.
   SITE_URL: location.hostname === 'news.sliska.pl' ? 'https://news.sliska.pl/' : 'https://sliska.pl/news/',
-  // Po ilu minutach od publikacji osobna strona artykułu na pewno już istnieje (generator działa co 30 min)
 
-  // true  = artykuły z API Śliskiej (Worker → Neon), widoczne dla wszystkich
+  // true  = artykuły z API Śliskiej (api.sliska.pl), widoczne dla wszystkich
   // false = localStorage (tryb demonstracyjny, dane tylko w tej przeglądarce)
-  USE_FIREBASE: true,
+  USE_API: true,
   // Osobny podgląd linku dla każdego artykułu (Facebook, Messenger, X, Threads…).
-  // Ustaw na true dopiero po wdrożeniu og-worker.js w Cloudflare (patrz INSTRUKCJA.md).
   OG_WORKER: true,
 
   // Oceny czytelników i powiadomienia push – działają przez Cloudflare Worker (patrz INSTRUKCJA.md)
   API_BASE: location.hostname === 'news.sliska.pl' ? 'https://api.sliska.pl' : '/news/api',   // news.sliska.pl (Vercel) mówi z api.sliska.pl
   PEEK_CHANCE: 0.5,        // jak często w połowie artykułu pojawia się polecany inny artykuł (0–1)
 
-  // Gdy Firebase nie odpowiada: false = pokaż komunikat o błędzie (zalecane na stronie publicznej),
+  // Gdy API nie odpowiada: false = pokaż komunikat o błędzie (zalecane na stronie publicznej),
   // true = przełącz się na localStorage z artykułami demonstracyjnymi.
   ALLOW_LOCAL_FALLBACK: false,
-
-  // Konta czytelników i komentarze: dane OSOBNEGO projektu Firebase (tylko Authentication). null = funkcja wyłączona.
-  READER_FIREBASE: {
-    apiKey: 'AIzaSyDi7M7X4cwsfIkxTebYlGsJPFN-NoAtwAU',
-    authDomain: 'sliska.pl',          // logowanie Google przez własną domenę (worker przekazuje /__/auth/* do sliska-users.firebaseapp.com)
-    projectId: 'sliska-users',
-    storageBucket: 'sliska-users.firebasestorage.app',
-    messagingSenderId: '236153117470',
-    appId: '1:236153117470:web:6b4bd4db90314fed52470f'
-  },
 
   MAX_ARTICLES: 40,        // ile najnowszych artykułów pobierać z bazy (oszczędza limit odczytów)
   PAGE_SIZE: 12,           // ile kafli pokazywać na stronie głównej, zanim pojawi się „Pokaż więcej”
@@ -61,10 +49,9 @@ const CONFIG = {
     ADMIN_ADDRESS: 'ul. Śliska 10, Warszawa',
     CONTACT_EMAIL: 'kontakt@sliska.pl',
     REDAKCJA_EMAIL: 'redakcja@sliska.pl',
-    UPDATED: '31 października 2026'
-  },
+    UPDATED: '3 listopada 2026'
+  }
 
-  FIREBASE_SDK_VERSION: '10.12.2'      // tylko logowanie czytelników (etap 3 je zastąpi)
 };
 
 const CATEGORIES = ['Muzyka', 'Recenzje', 'Kontrowersje', 'Dramy', 'Inne'];
@@ -502,7 +489,7 @@ const ApiProvider = {
   }
 };
 
-/** Provider „awaryjny”: gdy Firebase nie działa, a localStorage jest wyłączony w CONFIG. */
+/** Provider „awaryjny”: gdy API nie działa, a localStorage jest wyłączony w CONFIG. */
 const OfflineProvider = {
   async init() {},
   async watch() { return []; },
@@ -515,7 +502,7 @@ const DataService = {
   fallbackReason: '',
 
   async init() {
-    if (CONFIG.USE_FIREBASE) {
+    if (CONFIG.USE_API) {
       try {
         await ApiProvider.init();
         this.provider = ApiProvider;
@@ -2058,7 +2045,6 @@ async function renderInstagramImage(a, opts = {}) {
   return { blob, photoOk };
 }
 
-/*@staff-removed*/
 async function shareArticle(id) {
   const a = state.articles.find(x => x.id === id);
   if (!a) return;
@@ -2292,14 +2278,14 @@ function legalHtml(doc) {
     <h2>2. Jakie dane przetwarzamy i po co</h2>
     <ul>
       <li><strong>Zgłoś temat</strong> – treść zgłoszenia, opcjonalnie link i adres e-mail. Cel: rozpatrzenie zgłoszenia i ewentualny kontakt zwrotny. Podstawa: Twoja zgoda (art. 6 ust. 1 lit. a RODO). Dane przechowujemy do czasu rozpatrzenia zgłoszenia, nie dłużej niż 12 miesięcy.</li>
-      <li><strong>Dane techniczne</strong> – podczas wizyty w Serwisie serwery (hosting i usługi Google Firebase) mogą zapisywać w dziennikach adres IP, rodzaj przeglądarki i czas wizyty. Cel: zapewnienie działania i bezpieczeństwa Serwisu. Podstawa: uzasadniony interes administratora (art. 6 ust. 1 lit. f RODO).</li>
+      <li><strong>Dane techniczne</strong> – podczas wizyty w Serwisie serwery dostawców hostingu (Vercel, Cloudflare) mogą zapisywać w dziennikach adres IP, rodzaj przeglądarki i czas wizyty. Cel: zapewnienie działania i bezpieczeństwa Serwisu. Podstawa: uzasadniony interes administratora (art. 6 ust. 1 lit. f RODO).</li>
       <li><strong>Oceny recenzji</strong> – ocena, którą oddajesz pod recenzją, oraz losowy identyfikator przeglądarki. Aby jedna osoba nie mogła głosować wielokrotnie, zapisujemy też nieodwracalny skrót (hash) Twojego adresu sieciowego – nie przechowujemy samego adresu IP. Cel: uczciwe zliczanie ocen. Podstawa: uzasadniony interes administratora (art. 6 ust. 1 lit. f RODO). Oceny są anonimowe i przechowywane do czasu usunięcia recenzji.</li>
       <li><strong>Powiadomienia o nowych artykułach</strong> – jeśli klikniesz dzwonek, zapisujemy techniczny adres subskrypcji Twojej przeglądarki, aby wysłać powiadomienie. Cel: informowanie o nowych artykułach. Podstawa: Twoja zgoda (art. 6 ust. 1 lit. a RODO). Zgodę wycofasz, klikając dzwonek ponownie lub wyłączając powiadomienia w przeglądarce.</li>
-      <li><strong>Konto czytelnika i komentarze</strong> – adres e-mail, hasło (przechowywane w usłudze Google Firebase Authentication w postaci zabezpieczonej), nazwa użytkownika, opcjonalne zdjęcie profilowe, treść i data Twoich komentarzy oraz oceny recenzji oddane po zalogowaniu (podpisane Twoją nazwą; oceny bez konta pozostają anonimowe). Cel: prowadzenie konta i publikowanie komentarzy. Podstawa: umowa o świadczenie usługi konta (art. 6 ust. 1 lit. b RODO). Nazwa użytkownika, zdjęcie, komentarze i oceny oddane po zalogowaniu są publiczne. Dane przechowujemy do usunięcia konta; usunięcia konta lub komentarzy możesz zażądać mailowo.</li>
+      <li><strong>Konto czytelnika i komentarze</strong> – adres e-mail, hasło (przechowywane wyłącznie w postaci zabezpieczonego skrótu), nazwa użytkownika, opcjonalne zdjęcie profilowe, treść i data Twoich komentarzy oraz oceny recenzji oddane po zalogowaniu (podpisane Twoją nazwą; oceny bez konta pozostają anonimowe). Cel: prowadzenie konta i publikowanie komentarzy. Podstawa: umowa o świadczenie usługi konta (art. 6 ust. 1 lit. b RODO). Nazwa użytkownika, zdjęcie, komentarze i oceny oddane po zalogowaniu są publiczne. Dane przechowujemy do usunięcia konta; usunięcia konta lub komentarzy możesz zażądać mailowo.</li>
     </ul>
     <p>Podanie danych jest dobrowolne.</p>
     <h2>3. Komu przekazujemy dane</h2>
-    <p>Dane przetwarzają w naszym imieniu dostawcy usług: Google (usługa Firebase – baza danych oraz dostarczanie skryptów strony), Cloudflare (obsługa domeny, oceny czytelników i powiadomienia) oraz dostawca hostingu strony. Dane mogą być przetwarzane poza Europejskim Obszarem Gospodarczym na podstawie standardowych klauzul umownych lub innych zabezpieczeń przewidzianych w RODO. Nie sprzedajemy danych i nie przekazujemy ich reklamodawcom.</p>
+    <p>Dane przetwarzają w naszym imieniu dostawcy usług: Cloudflare (obsługa domeny, API serwisu, zdjęcia, oceny i powiadomienia), Neon (baza danych kont i komentarzy, serwery we Frankfurcie), Vercel (hosting strony), Resend (wysyłka e-maili z serwisu) oraz Google (logowanie kontem Google – jeśli z niego korzystasz – i kopia zapasowa artykułów). Dane mogą być przetwarzane poza Europejskim Obszarem Gospodarczym na podstawie standardowych klauzul umownych lub innych zabezpieczeń przewidzianych w RODO. Nie sprzedajemy danych i nie przekazujemy ich reklamodawcom.</p>
     <h2>4. Pliki cookies i pamięć przeglądarki</h2>
     <p>Serwis nie używa własnych plików cookies reklamowych ani analitycznych. W pamięci Twojej przeglądarki (localStorage) zapisujemy wyłącznie dane techniczne potrzebne do działania strony: wybrany motyw jasny/ciemny, licznik ograniczający liczbę zgłoszeń oraz losowy identyfikator przeglądarki używany przy ocenianiu recenzji. Zapisane na później artykuły również pamiętamy tylko w Twojej przeglądarce. Niektóre artykuły zawierają osadzone odtwarzacze YouTube (w trybie rozszerzonej prywatności youtube-nocookie.com) lub Spotify; po ich uruchomieniu dane przetwarza odpowiednio Google lub Spotify na własnych zasadach. Możesz je usunąć w ustawieniach przeglądarki. Jeśli w przyszłości dodamy narzędzia analityczne, zaktualizujemy tę politykę.</p>
     <h2>5. Twoje prawa</h2>
@@ -2353,7 +2339,6 @@ function renderSaved() {
 
 function validEmail(v) { return v.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }
 
-/*@staff-removed*/
 /* ---------- Galeria w artykule: scena + miniatury + pełny ekran ---------- */
 const GX_ICON = {
   prev: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -2519,13 +2504,12 @@ function galleryClick(e) {
   }
 }
 
-/*@staff-removed*/
 /* ---------- Szybkie przełączanie kont (konta czytelników zapamiętane na tym urządzeniu) ---------- */
 const Accounts = {
   KEY: 'sliska_accounts', MAX: 5, SESSION_MS: 24 * 3600e3,
   list() { try { const l = JSON.parse(localStorage.getItem(this.KEY)); return Array.isArray(l) ? l : []; } catch { return []; } },
   save(l) { try { localStorage.setItem(this.KEY, JSON.stringify(l.slice(0, this.MAX))); } catch { /* ignoruj */ } },
-  /** Zapamiętuje zalogowane konto (sesja Firebase, bez hasła), żeby dało się do niego wrócić jednym kliknięciem. */
+  /** Zapamiętuje zalogowane konto (sesja Śliskiej, bez hasła), żeby dało się do niego wrócić jednym kliknięciem. */
   async remember(user, me) {
     if (!user || !me || !me.name || !user.toJSON) return;   // sesja = token Śliskiej (bez hasła)
     let authTime = 0; try { authTime = Date.parse((await user.getIdTokenResult()).authTime) || 0; } catch { /* ignoruj */ }
@@ -2536,20 +2520,6 @@ const Accounts = {
   },
   forget(uid) { this.save(this.list().filter(a => a.uid !== uid)); },
   expired(a) { return !a.authTime || Date.now() - a.authTime > this.SESSION_MS - 600e3; },
-  idbPut(key, value) {
-    return new Promise((res, rej) => {
-      const rq = indexedDB.open('firebaseLocalStorageDb');
-      rq.onerror = () => rej(rq.error);
-      rq.onsuccess = () => {
-        try {
-          const db = rq.result, tx = db.transaction('firebaseLocalStorage', 'readwrite');
-          tx.objectStore('firebaseLocalStorage').put({ fbase_key: key, value });
-          tx.oncomplete = () => { db.close(); res(); };
-          tx.onerror = () => rej(tx.error);
-        } catch (e) { rej(e); }
-      };
-    });
-  },
   async switchTo(uid) {
     const a = this.list().find(x => x.uid === uid);
     if (!a) return;
@@ -2622,7 +2592,7 @@ function movedAppNotice() {
   box.className = 'moved-app';
   box.setAttribute('role', 'dialog');
   box.innerHTML = '<strong>Śliska News ma nowy adres: news.sliska.pl</strong>' +
-    '<p>Jeśli masz zainstalowaną aplikację, usuń starą ikonę z ekranu i zainstaluj ją ponownie – stąd, z nowego adresu. Konto i zapisane ustawienia zostają.</p>' +
+    '<p>Jeśli masz zainstalowaną aplikację, usuń starą ikonę z ekranu i zainstaluj ją ponownie – stąd, z nowego adresu. Po instalacji zaloguj się ponownie.</p>' +
     '<div class="moved-app-btns"><button type="button" class="btn btn-primary" data-a="i">Zainstaluj ponownie</button><button type="button" class="btn" data-a="x">Później</button></div>';
   box.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -2636,7 +2606,6 @@ function movedAppNotice() {
 }
 window.addEventListener('load', () => setTimeout(movedAppNotice, 600));
 
-/*@staff-removed*/
 /* ---------- „NOWE”: artykuły opublikowane w ciągu ostatnich 12 godzin ---------- */
 const Visit = {
   HOURS: 12,
@@ -2783,7 +2752,6 @@ function renderQuick() {
     ${list.length > shown.length ? '<div class="load-more"><button type="button" class="btn" data-action="quick-more">Pokaż starsze</button></div>' : ''}`;
 }
 
-/*@staff-removed*/
 /* ---------- Zgłoszenie błędu w artykule ---------- */
 function openReportModal(id) {
   const a = state.articles.find(x => x.id === id);
@@ -2833,7 +2801,6 @@ async function submitReport(e) {
   }
 }
 
-/*@staff-removed*/
 /* ---------- Udostępnianie z grafiką ---------- */
 function articleShortUrl(a) { return location.href.split('#')[0] + '#/a/' + encodeURIComponent(a.id); }
 
@@ -2863,12 +2830,11 @@ async function shareImage(id, btn) {
   }
 }
 
-/*@staff-removed*/
 /* =========================================================
    Konta czytelników i komentarze
    ========================================================= */
 const READER_ERR = {
-  weak: 'Hasło musi mieć od 6 do 128 znaków.', fb: 'Firebase odrzucił zmianę. Spróbuj ponownie.', no_sa: 'Brak konta serwisowego w Workerze (READER_SA) – nie da się ustawić hasła.', not_found: 'Nie znaleziono konta.',
+  weak: 'Hasło musi mieć od 6 do 128 znaków.', fb: 'Serwer odrzucił zmianę. Spróbuj ponownie.', no_sa: 'Brak konta serwisowego w Workerze (READER_SA) – nie da się ustawić hasła.', not_found: 'Nie znaleziono konta.',
   endpoint: 'Worker jest w starej wersji – wgraj najnowszy og-worker.js (Edit code → Deploy).', too_fast: 'Poczekaj chwilę – powiadomienie wysłano przed chwilą.', busy: 'Poprzednie rozsyłanie jeszcze trwa – spróbuj za minutę.', not_found: 'Nie znaleziono artykułu.',
   name_len: 'Nazwa użytkownika musi mieć od 3 do 20 znaków.', name_chars: 'Nazwa: tylko małe litery a–z, cyfry oraz pojedyncza kropka lub podkreślnik w środku (bez spacji i polskich znaków).',
   bad_login: 'Nieprawidłowa nazwa/e-mail lub hasło.', rename: 'Najpierw zmień nazwę użytkownika na zgodną z nowymi zasadami.', session_expired: 'Sesja wygasła – zaloguj się ponownie.',
@@ -2878,7 +2844,7 @@ const READER_ERR = {
   off: 'Komentarze do tego artykułu są wyłączone.', short: 'Komentarz jest za krótki.', long: 'Komentarz jest za długi (maks. 600 znaków).',
   no_profile: 'Najpierw ustaw nazwę użytkownika na stronie konta.', avatar: 'Nie udało się zapisać zdjęcia.', auth: 'Zaloguj się ponownie.',
   slow: 'Poczekaj chwilę przed kolejnym komentarzem (tryb wolniejszej dyskusji).', edit_late: 'Komentarz można poprawiać tylko przez 5 minut od publikacji.', gone: 'Tego komentarza już nie ma.', session_revoked: 'Sesja wygasła – zaloguj się ponownie.',
-  'auth/popup-closed-by-user': '', 'auth/cancelled-popup-request': '', 'auth/popup-blocked': 'Przeglądarka zablokowała okno logowania Google. Zezwól na wyskakujące okna dla tej strony.', 'auth/account-exists-with-different-credential': 'Ten adres e-mail ma już konto z hasłem. Zaloguj się hasłem.', 'auth/operation-not-allowed': 'Logowanie przez Google nie jest jeszcze włączone w Firebase.', 'auth/unauthorized-domain': 'Ta domena nie jest dodana w Firebase (Authentication → Settings → Authorized domains).',
+  'auth/popup-closed-by-user': '', 'auth/cancelled-popup-request': '', 'auth/popup-blocked': 'Przeglądarka zablokowała okno logowania Google. Zezwól na wyskakujące okna dla tej strony.', 'auth/account-exists-with-different-credential': 'Ten adres e-mail ma już konto z hasłem. Zaloguj się hasłem.', 'auth/operation-not-allowed': 'Logowanie przez Google jest chwilowo niedostępne.',
   readers_off: 'Komentarze są chwilowo niedostępne.', 'auth/email-already-in-use': 'Ten adres e-mail ma już konto. Zaloguj się.',
   'auth/weak-password': 'Hasło musi mieć co najmniej 6 znaków.', 'auth/invalid-email': 'Nieprawidłowy adres e-mail.',
   'auth/invalid-credential': 'Nieprawidłowy e-mail lub hasło.', 'auth/wrong-password': 'Nieprawidłowy e-mail lub hasło.', 'auth/user-not-found': 'Nieprawidłowy e-mail lub hasło.',
@@ -2895,11 +2861,11 @@ const readerErr = e => {
 
 const Readers = {
   auth: null, user: null, me: null, loading: true,
-  enabled() { const c = CONFIG.READER_FIREBASE; return !!(c && c.apiKey && c.projectId); },
+  enabled() { return !!window.SliskaAuth; },
   async init() {
     if (!this.enabled()) { this.loading = false; return; }
     try {
-      this.auth = window.SliskaAuth.auth();      // etap 3: własne logowanie (API Śliskiej), interfejs jak Firebase Auth
+      this.auth = window.SliskaAuth.auth();      // własne logowanie (api.sliska.pl)
       this.auth.onAuthStateChanged(async u => {
         this.user = u; this.me = null;
         if (u) { await this.loadMe(); Accounts.remember(u, this.me); Push.link(); }
@@ -2949,8 +2915,7 @@ const Readers = {
     await Push.unlink();
     await this.auth.signOut();
   },
-  /** Czytelnik z rolą Redaktor/Właściciel dostaje od workera token logowania do projektu redakcji (prawo pisania artykułów). */
-  /** Własne maile z Workera; gdy Worker nie ma skonfigurowanej wysyłki (albo zawiedzie), idzie standardowy mail Firebase. */
+  /** Mail z linkiem potwierdzającym adres (wysyła worker przez Resend). */
   async sendVerify(strict) {
     try { await this.user.sendEmailVerification(); }
     catch (e) { if (strict) throw e; }
@@ -3480,7 +3445,7 @@ function bindReaderEvents() {
           const dn = String((Readers.user && Readers.user.displayName) || '').replace(/[^\p{L}\p{N}_. -]/gu, '').trim().slice(0, 20);
           $('#reader-name').value = dn; setReaderMode('name');
         } else { closeModal('reader-modal'); toast('Zalogowano.'); }
-      } catch (ex) { const m = ex && ex.code === 'auth/operation-not-allowed' ? 'Logowanie przez Google nie jest jeszcze włączone w Firebase (projekt czytelników): Authentication → Sign-in method → Google → Enable.' : readerErr(ex); if (m && !/^Coś poszło/.test(m) || ex.code === undefined) { err.className = 'form-error'; err.hidden = false; err.textContent = m; } }
+      } catch (ex) { const m = readerErr(ex); if (m && !/^Coś poszło/.test(m) || ex.code === undefined) { err.className = 'form-error'; err.hidden = false; err.textContent = m; } }
       finally { b.disabled = false; }
       return;
     }
@@ -3510,7 +3475,6 @@ function bindReaderEvents() {
   });
 }
 
-/*@staff-removed*/
 /* ---- moderacja komentarzy (Moje konto → Komentarze; Moderator, Redaktor, Właściciel) ---- */
 const Mod = { all: false };
 const ROLE_LABEL = { owner: 'Właściciel Portalu', chief: 'Redaktor naczelny', editor: 'Redaktor', mod: 'Moderator' };
@@ -3596,7 +3560,6 @@ function modItemHtml(c) {
   </article>`;
 }
 
-/*@staff-removed*/
 /* ---------- Routing ---------- */
 function showView(name) {
   ['home', 'article', 'ranking', 'notfound', 'tip', 'legal', 'saved', 'quick', 'account', 'user', 'authors'].forEach(v => { $('#view-' + v).hidden = v !== name; });

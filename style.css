@@ -3005,3 +3005,9 @@ html.rail-on.is-dev:not(.dev-logo-off) body.rail-c #logo::after { content: "DEV"
   .article-meta > .rx-top[hidden] { display: none; }
   .article-meta > .rx-top::before { content: none !important; display: none !important; }
 }
+
+/* Logo w pasku bocznym (komputer): pełna szerokość paska, jak na dev (v20261103b) */
+@media (min-width: 1100px) {
+  html.rail-on .site-header .logo { padding: 2px 8px 4px; }
+  html.rail-on .site-header .logo svg { width: 100%; height: auto; }
+}
