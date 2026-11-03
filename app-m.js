@@ -200,11 +200,3 @@
   if (app) new MutationObserver(later).observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
   later();
 })();
-
-/* Animacje (tylko dev): znaczniki klas dla motion.css */
-(function () {
-  var de = document.documentElement, t1, t2;
-  de.classList.add('mo-first'); setTimeout(function () { de.classList.remove('mo-first'); }, 1600);
-  window.addEventListener('hashchange', function () { de.classList.add('mo-nav'); clearTimeout(t1); t1 = setTimeout(function () { de.classList.remove('mo-nav'); }, 450); });
-  new MutationObserver(function () { de.classList.add('mo-theme'); clearTimeout(t2); t2 = setTimeout(function () { de.classList.remove('mo-theme'); }, 500); }).observe(de, { attributes: true, attributeFilter: ['data-theme'] });
-})();
