@@ -2608,6 +2608,34 @@ async function installApp() {
   }
 }
 
+/* ---------- Nowy adres aplikacji: sliska.pl/news → news.sliska.pl ----------
+ * Stara aplikacja (zainstalowana z sliska.pl/news) otwiera stary adres, a ten przekierowuje tu z ?z=app.
+ * Pokazujemy wtedy raz prośbę o ponowną instalację z nowego adresu (ikony są te same). */
+function movedAppNotice() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('z')) return;
+  q.delete('z');
+  try { history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); } catch { /* ignoruj */ }
+  if (isStandalone()) return;
+  try { if (localStorage.getItem('sliska_moved')) return; localStorage.setItem('sliska_moved', '1'); } catch { /* ignoruj */ }
+  const box = document.createElement('div');
+  box.className = 'moved-app';
+  box.setAttribute('role', 'dialog');
+  box.innerHTML = '<strong>Śliska News ma nowy adres: news.sliska.pl</strong>' +
+    '<p>Jeśli masz zainstalowaną aplikację, usuń starą ikonę z ekranu i zainstaluj ją ponownie – stąd, z nowego adresu. Konto i zapisane ustawienia zostają.</p>' +
+    '<div class="moved-app-btns"><button type="button" class="btn btn-primary" data-a="i">Zainstaluj ponownie</button><button type="button" class="btn" data-a="x">Później</button></div>';
+  box.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.a === 'i') {
+      if (deferredInstall || isIos() || isMacSafari()) installApp();
+      else toast('Otwórz news.sliska.pl w przeglądarce (Chrome / Safari) i wybierz „Zainstaluj aplikację” albo „Dodaj do ekranu głównego”.');
+    }
+    box.remove();
+  });
+  document.body.appendChild(box);
+}
+window.addEventListener('load', () => setTimeout(movedAppNotice, 600));
+
 /*@staff-removed*/
 /* ---------- „NOWE”: artykuły opublikowane w ciągu ostatnich 12 godzin ---------- */
 const Visit = {

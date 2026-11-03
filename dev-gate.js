@@ -44,16 +44,31 @@
   window.addEventListener('storage', function (e) { if (e.key !== KEY) return; var t = e.newValue; if (t && valid(t)) { if (!cur || claims(t).sub !== cur.uid) { cur = makeUser(t); emit(); } else apply(cur, t); } else if (cur) { cur = null; emit(); } });
   setInterval(function () { if (cur && !valid(cur._t)) { cur = null; store(null); emit(); } }, 60000);
 
+  /* Google: na komputerze okienko (popup), na telefonie i w zainstalowanej aplikacji – przekierowanie całej strony
+   * (w aplikacji PWA na iPhonie okienko traci połączenie ze stroną i logowanie by się nie kończyło). */
+  function googleRedirectUri() { return location.origin + (location.hostname === 'news.sliska.pl' ? '' : '/news') + '/google.html'; }
+  function useRedirect() {
+    var sa = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    var mob = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return sa || mob;
+  }
+  function googleUrl(cid, nonce) {
+    return 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(cid) + '&redirect_uri=' + encodeURIComponent(googleRedirectUri()) +
+      '&response_type=id_token&scope=' + encodeURIComponent('openid email profile') + '&nonce=' + nonce + '&state=' + nonce + '&prompt=select_account';
+  }
+  function googleViaRedirect(cid, nonce) {
+    try { localStorage.setItem('sliska_g', JSON.stringify({ n: nonce, r: location.href, t: Date.now() })); } catch (e) { /* ignoruj */ }
+    location.href = googleUrl(cid, nonce);
+    return new Promise(function () { /* strona przechodzi do Google */ });
+  }
   function googleLogin() {
     return call('/auth/config').then(function (cfg) {
       if (!cfg.google) throw err('google_off', 'Logowanie Google nie jest jeszcze skonfigurowane.');
+      var nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      if (useRedirect()) return googleViaRedirect(cfg.google, nonce);
       return new Promise(function (resolve, reject) {
-        var nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
-        var redirect = location.origin + (location.hostname === 'news.sliska.pl' ? '' : '/news') + '/google.html';
-        var u = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(cfg.google) + '&redirect_uri=' + encodeURIComponent(redirect) +
-          '&response_type=id_token&scope=' + encodeURIComponent('openid email profile') + '&nonce=' + nonce + '&state=' + nonce + '&prompt=select_account';
-        var w = window.open(u, 'sliska-google', 'width=500,height=640');
-        if (!w) { reject(err('auth/popup-blocked')); return; }
+        var w = window.open(googleUrl(cfg.google, nonce), 'sliska-google', 'width=500,height=640');
+        if (!w) { googleViaRedirect(cfg.google, nonce); return; }
         var done = false;
         function finish(fn, v) { if (done) return; done = true; window.removeEventListener('message', onMsg); clearInterval(timer); fn(v); }
         function onMsg(ev) {
