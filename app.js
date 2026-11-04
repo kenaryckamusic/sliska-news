@@ -589,12 +589,16 @@ function setArticles(list) {
 /** Kadr zdjęcia głównego (wybrany w edytorze): punkt ostrości i przybliżenie. Działa tylko dla zdjęcia głównego artykułu. */
 function imgFocus(a, src) {
   const p = a && a.imagePos;
-  if (!p || !a.image || (src !== undefined && src !== a.image)) return '';
+  if (!p || !a.image || (src !== undefined && src !== a.image && src !== a.imageSm)) return '';
   const x = Math.min(100, Math.max(0, Number(p.x))), y = Math.min(100, Math.max(0, Number(p.y))), z = Math.min(3, Math.max(1, Number(p.z) || 1));
   if (!Number.isFinite(x) || !Number.isFinite(y) || (x === 50 && y === 50 && z === 1)) return '';
   return ` style="object-position:${x}% ${y}%;transform-origin:${x}% ${y}%${z > 1 ? ';scale:' + z : ''}"`;
 }
-function getImage(a) { return a.image || Utils.placeholder(Utils.catsOf(a)[0]); }
+/** Zdjęcie główne; na listach mniejsza wersja WebP (imageSm, ok. 960 px), jeśli studio ją przygotowało. */
+const smallOf = a => (a.imageSm && a.imageSmOf === a.image) ? a.imageSm : '';
+function getImage(a, full) { return (!full && smallOf(a)) || a.image || Utils.placeholder(Utils.catsOf(a)[0]); }
+/** srcset: mała wersja na telefon, pełna na duże ekrany. */
+function imgSet(a, sizes) { const sm = smallOf(a); return sm ? ` srcset="${Utils.esc(sm)} 960w, ${Utils.esc(a.image)} 2400w" sizes="${sizes}"` : ''; }
 
 function sourceTag(src) {
   return src ? `<span class="img-source">${Utils.esc(src)}</span>` : '';
@@ -828,14 +832,23 @@ function drawReactions() {
     const best = REACTIONS.map(([k, e]) => [e, Reacts.counts[k] || 0]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
     const fv = n => n >= 1000 ? (n / 1000).toFixed(1).replace('.', ',') + ' tys.' : String(n);
     const parts = [];
-    if (Reacts.views) parts.push(`<span class="rx-v"><svg class="ic-eye" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>${fv(Reacts.views)}</span>`);
+    if (Reacts.views) parts.push(`<span class="rx-v">${ICON('eye', 16, 'ic-eye')}${fv(Reacts.views)}</span>`);
     best.forEach(([e, n]) => parts.push(`<span>${e} ${fv(n)}</span>`));
     top.innerHTML = parts.join('');
     top.hidden = !parts.length;
   }
   const fmt = n => n >= 1000 ? (n / 1000).toFixed(1).replace('.', ',') + ' tys.' : String(n);
-  box.innerHTML = `<div class="rx-head"><b>Jak Ci się podobało?</b><span class="rx-views" title="Wyświetlenia artykułu"><svg class="ic-eye" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> ${fmt(Reacts.views)}</span></div>
+  box.innerHTML = `<div class="rx-head"><b>Jak Ci się podobało?</b><span class="rx-views" title="Wyświetlenia artykułu">${ICON('eye', 16, 'ic-eye')} ${fmt(Reacts.views)}</span></div>
     <div class="rx-row">${REACTIONS.map(([k, e, l]) => `<button type="button" class="rx-btn${Reacts.mine === k ? ' is-on' : ''}" data-rx="${k}" aria-pressed="${Reacts.mine === k}"><span class="rx-e" aria-hidden="true">${e}</span><span class="rx-l">${l}</span><b>${Reacts.counts[k] || 0}</b></button>`).join('')}</div>`;
+  renderRxFloat();
+}
+function renderRxFloat() {
+  let f = $('#rx-float');
+  if (!f) { f = document.createElement('div'); f.id = 'rx-float'; f.className = 'rx-float'; f.setAttribute('role', 'group'); f.setAttribute('aria-label', 'Zareaguj na artykuł'); document.body.appendChild(f); }
+  f.dataset.article = Reacts.article;
+  const fv = n => n >= 1000 ? (n / 1000).toFixed(1).replace('.', ',') + 'k' : String(n);
+  f.innerHTML = REACTIONS.map(([k, e, l]) => `<button type="button" class="rxf-btn${Reacts.mine === k ? ' is-on' : ''}" data-rx="${k}" aria-pressed="${Reacts.mine === k}" title="${l}"><span aria-hidden="true">${e}</span>${Reacts.counts[k] ? `<b>${fv(Reacts.counts[k])}</b>` : ''}</button>`).join('');
+  rxFloatSync(currentRoute().name === 'article');
 }
 async function reactTo(kind) {
   if (!Reacts.article) return;
@@ -863,6 +876,7 @@ async function initReaderVote(a) {
   const editor = a.review.score;
   let mine = typeof sum.mine === 'number' ? sum.mine : null;
   let cur = { ...sum };
+  paintReviewBoth(a.id, editor, cur);
   let signed = !!sum.signed;
   let showResults = mine !== null;
 
@@ -897,7 +911,7 @@ async function initReaderVote(a) {
       const score = act === 'score' ? Number(b.dataset.score) : Number($('#rv-range', box).value);
       b.disabled = true;
       const r = await Votes.send(a.id, score);
-      if (r.status === 200 && r.data.ok) { mine = r.data.mine; cur = { n: r.data.n, avg: r.data.avg, voters: r.data.voters }; showResults = true; draw(); toast('Dziękujemy za ocenę!'); Votes._all = null; return; }
+      if (r.status === 200 && r.data.ok) { mine = r.data.mine; cur = { n: r.data.n, avg: r.data.avg, voters: r.data.voters }; showResults = true; draw(); paintReviewBoth(a.id, editor, cur); toast('Dziękujemy za ocenę!'); Votes._all = null; return; }
       const msg = r.status === 409 ? 'Z tej sieci ktoś już ocenił tę recenzję – na jedną sieć przypada jedna ocena.'
         : r.status === 429 ? 'Za dużo ocen w krótkim czasie. Spróbuj za godzinę.'
         : r.status === 404 ? 'Tej recenzji nie można teraz ocenić.' : 'Nie udało się zapisać oceny. Spróbuj ponownie.';
@@ -906,6 +920,18 @@ async function initReaderVote(a) {
     }
   };
   draw();
+}
+
+/** „Redakcja 7,5 · Czytelnicy 8,2” w ramce recenzji – od razu widać, czy czytelnicy się zgadzają. */
+function paintReviewBoth(id, editor, cur) {
+  const el = document.querySelector(`[data-rv-both="${CSS.escape(id)}"]`); if (!el) return;
+  const enough = cur && cur.n >= Votes.MIN_SHOWN;
+  const diff = enough ? cur.avg - editor : 0;
+  const mood = !enough ? '' : Math.abs(diff) < 0.75 ? 'zgodni' : diff > 0 ? 'czytelnicy wyżej' : 'czytelnicy niżej';
+  el.innerHTML = `<span class="rb-ed"><small>Redakcja</small><b>${fmt1(editor)}</b></span><i aria-hidden="true"></i>`
+    + (enough ? `<span class="rb-rd${Math.abs(diff) >= 0.75 ? (diff > 0 ? ' is-up' : ' is-down') : ''}"><small>Czytelnicy</small><b>${fmt1(cur.avg)}</b><em>${cur.n} ${plural(cur.n, 'ocena', 'oceny', 'ocen')} · ${mood}</em></span>`
+      : `<span class="rb-rd is-none"><small>Czytelnicy</small><b>–</b><em>${cur && cur.n ? 'za mało ocen' : 'oceń jako pierwszy'}</em></span>`);
+  el.hidden = false;
 }
 
 /** Średnie czytelników w rankingu (po wczytaniu rankingu, bez blokowania widoku). */
@@ -937,6 +963,7 @@ function reviewHtml(a) {
       <div class="review-work">${Utils.esc(r.work)}</div>
       ${r.artist ? `<div class="review-artist"><a href="#/artysta/${encodeURIComponent(r.artist)}">${Utils.esc(r.artist)}</a></div>` : ''}
       ${r.year ? `<div class="review-year">${Utils.esc(r.year)}</div>` : ''}
+      <div class="review-both" data-rv-both="${Utils.esc(a.id)}" hidden></div>
     </div>
     ${cover}
   </section>`;
@@ -959,7 +986,7 @@ function currentRoute() {
   if (parts[0] === 'prywatnosc' || parts[0] === 'regulamin') return { name: 'legal', doc: parts[0] };
   if (parts[0] === 'o-nas' || parts[0] === 'kontakt') return { name: 'legal', doc: 'o-nas' };
   if (parts[0] === 'zapisane') return { name: 'saved' };
-  if (parts[0] === 'szybkie') return { name: 'quick' };
+  if (parts[0] === 'szybkie') return { name: 'quick', id: parts[1] ? decodeURIComponent(parts[1]) : '' };
   if (parts.length) return { name: 'notfound' };
   return { name: 'home' };
 }
@@ -1108,7 +1135,7 @@ function renderAuthors() {
     }).join('') : '<p class="muted">Nikogo takiego nie znaleziono.</p>';
   };
   if (!$('#au-list')) {
-    el.innerHTML = `<div class="article-top"><a class="btn" href="#/">← Powrót do strony głównej</a></div>
+    el.innerHTML = `<div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a></div>
       <header class="rank-head"><span class="rank-eyebrow">Ludzie Śliska News</span><h1 class="rank-title">Redakcja</h1></header>
       <input type="search" class="mod-q" id="au-q" placeholder="Szukaj redaktora…" aria-label="Szukaj redaktora" autocomplete="off">
       <div class="au-list" id="au-list"></div>`;
@@ -1239,16 +1266,54 @@ function mastheadHtml(list) {
 function heroHtml(a, useCover) {
   const id = encodeURIComponent(a.id);
   return `<section class="hero" data-id="${Utils.esc(a.id)}" aria-label="Temat dnia">
-    <img class="hero-img" fetchpriority="high" decoding="async" src="${Utils.esc(thumbFor(a, useCover))}"${imgFocus(a, thumbFor(a, useCover))} alt="" data-cat="${Utils.esc(Utils.catsOf(a)[0] || '')}">
+    <img class="hero-img" fetchpriority="high" decoding="async" src="${Utils.esc(thumbFor(a, useCover))}"${thumbFor(a, useCover) === smallOf(a) ? imgSet(a, '(max-width: 860px) 100vw, 62vw') : ''}${imgFocus(a, thumbFor(a, useCover))} alt="" data-cat="${Utils.esc(Utils.catsOf(a)[0] || '')}">
     <div class="hero-tags"><span class="hero-flag">Temat dnia</span>${Utils.chipsHtml(a)}</div>
     <div class="hero-content">
       <h2 class="hero-title"><a href="#/artykul/${id}">${Utils.esc(a.title)}</a></h2>
       <div class="card-meta">
-        <time datetime="${Utils.esc(a.createdAt)}">${Utils.formatDate(a.createdAt)} · ${Utils.esc(a.author)}</time>
+        <time datetime="${Utils.esc(a.createdAt)}">${Utils.esc(new Date(a.createdAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' }))} · ${Utils.esc(a.author)}</time>
       </div>
+      ${heroStatsHtml(a)}
     </div>
   </section>`;
 }
+
+/** Statystyki „Tematu dnia”: godzina, czas czytania, wyświetlenia, komentarze (liczby dociągane z Workera). */
+function heroStatsHtml(a) {
+  const st = Stats.get(a.id);
+  const mins = Utils.readingTime(a, state.plain.get(a.id));
+  const time = new Date(a.createdAt).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  const n = v => `<b data-st>${v == null ? '–' : Stats.fmt(v)}</b>`;
+  return `<div class="hero-stats" data-stats="${Utils.esc(a.id)}">
+    <span>${Utils.esc(time)}</span><i aria-hidden="true"></i>
+    <span title="Czas czytania">${ICON('clock', 15)}${mins} min</span><i aria-hidden="true"></i>
+    <span title="Wyświetlenia" data-st-v>${ICON('eye', 15)}${n(st && st.v)}</span><i aria-hidden="true"></i>
+    <span title="Komentarze" data-st-c>${ICON('chat', 15)}${n(st && st.c)}</span>
+  </div>`;
+}
+const Stats = {
+  map: new Map(), busy: new Set(),
+  get(id) { return this.map.get(id) || null; },
+  fmt(v) { v = Number(v) || 0; return v >= 1e6 ? (v / 1e6).toFixed(1).replace('.', ',').replace(',0', '') + ' mln' : v >= 1e4 ? (v / 1e3).toFixed(1).replace('.', ',').replace(',0', '') + ' tys.' : v.toLocaleString('pl-PL'); },
+  async load(ids) {
+    ids = ids.filter(id => id && !this.map.has(id) && !this.busy.has(id)); if (!ids.length || !CONFIG.API_BASE) return;
+    ids.forEach(id => this.busy.add(id));
+    try {
+      const r = await fetch(CONFIG.API_BASE + '/stats?ids=' + ids.map(encodeURIComponent).join(','));
+      const d = r.ok ? await r.json() : null;
+      if (d && d.stats) Object.entries(d.stats).forEach(([id, v]) => this.map.set(id, v));
+    } catch { /* bez Workera liczby zostają ukryte */ }
+    ids.forEach(id => this.busy.delete(id));
+    this.paint();
+  },
+  paint() {
+    $$('[data-stats]').forEach(box => {
+      const st = this.map.get(box.dataset.stats); if (!st) return;
+      const v = box.querySelector('[data-st-v] [data-st]'), c = box.querySelector('[data-st-c] [data-st]');
+      if (v) v.textContent = this.fmt(st.v); if (c) c.textContent = this.fmt(st.c);
+    });
+  }
+};
 
 function tileHtml(a) {
   const id = encodeURIComponent(a.id);
@@ -1315,6 +1380,7 @@ function renderHome() {
   $('#hero-slot').innerHTML = hero
     ? mastheadHtml(list) + `<div class="home-top${tiles.length ? '' : ' single'}">${heroHtml(hero, false)}${tiles.length ? `<div class="home-tiles">${tiles.map(tileHtml).join('')}</div>` : ''}</div>`
     : coll ? collectionHeadHtml(list) : '';
+  if (hero) Stats.load([hero.id]);
   $('#resume-slot').innerHTML = (state.category === ALL && !coll && !state.query.trim() ? newBannerHtml() : '') + '';
   $('#quick-slot').innerHTML = showTop && !state.onlyNew ? quickStripHtml() : '';
   $('#news-grid').classList.toggle('is-square', isReviews);
@@ -1385,7 +1451,7 @@ function articleHtml(a, plain) {
   const showHero = !hasReview || !!a.image;
   const heroFig = showHero
     ? `<figure class="article-hero">
-        <div class="media-wrap"><img src="${Utils.esc(getImage(a))}"${imgFocus(a)} alt="${Utils.esc(a.title)}" data-cat="${Utils.esc(Utils.catsOf(a)[0] || '')}">${sourceTag(a.imageSource)}</div>
+        <div class="media-wrap"><img src="${Utils.esc(getImage(a))}"${imgSet(a, '(max-width: 860px) 100vw, 860px')}${imgFocus(a)} alt="${Utils.esc(a.title)}" data-cat="${Utils.esc(Utils.catsOf(a)[0] || '')}">${sourceTag(a.imageSource)}</div>
         ${a.imageCaption ? `<figcaption>${Utils.esc(a.imageCaption)}</figcaption>` : ''}
       </figure>`
     : '';
@@ -1410,6 +1476,7 @@ function articleHtml(a, plain) {
       ${heroFig}
       <div class="article-layout">
         <div class="article-main">
+          ${sagaHtml(a)}
           <p class="article-lead">${Utils.esc(a.lead)}</p>
           <div class="article-body">${Sanitizer.render(a.content)}</div>
           ${hasReview ? reviewHtml(a) + `<section class="reader-vote" id="reader-vote" data-article="${Utils.esc(a.id)}" hidden></section>` : ''}
@@ -1419,6 +1486,25 @@ function articleHtml(a, plain) {
       </div>
       <div id="comments-home">${commentsHtml}</div>
     </article>`;
+}
+
+/** Drama z kontynuacją: artykuły połączone w jeden ciąg (pole „saga” = id pierwszego tekstu). */
+function sagaOf(a) {
+  const root = a.saga || a.id;
+  const list = publishedArticles().filter(x => x.id === root || x.saga === root);
+  return list.length > 1 ? list.sort((p, r) => Date.parse(p.createdAt) - Date.parse(r.createdAt)) : [];
+}
+function sagaHtml(a) {
+  const list = sagaOf(a); if (!list.length) return '';
+  const newest = list[list.length - 1], isNewest = newest.id === a.id;
+  const day = x => new Date(x.createdAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+  const items = list.map(x => x.id === a.id
+    ? `<li class="is-now"><span class="saga-dot" aria-hidden="true"></span><span class="saga-t"><b>Teraz czytasz</b><span>${Utils.esc(x.title)}</span></span><time datetime="${Utils.esc(x.createdAt)}">${day(x)}</time></li>`
+    : `<li><span class="saga-dot" aria-hidden="true"></span><a class="saga-t" href="#/artykul/${encodeURIComponent(x.id)}"><span>${Utils.esc(x.title)}</span></a><time datetime="${Utils.esc(x.createdAt)}">${day(x)}</time></li>`).join('');
+  const next = isNewest ? '' : `<a class="saga-next" href="#/artykul/${encodeURIComponent(newest.id)}"><span class="saga-next-l">Najnowsza odsłona</span><span class="saga-next-t">${Utils.esc(newest.title)}</span>${ICON('arrow', 18)}</a>`;
+  return `<section class="saga${isNewest ? '' : ' is-old'}" aria-label="Ta drama ma swoją kontynuację">
+    <div class="saga-head">${ICON('flame', 18)}<b>Ta drama ma swoją kontynuację</b><span class="saga-n">${list.length} ${plural(list.length, 'artykuł', 'artykuły', 'artykułów')}</span></div>
+    ${next}<ol class="saga-list">${items}</ol></section>`;
 }
 
 function tagsBlockHtml(a) {
@@ -1543,15 +1629,16 @@ function renderArticleView(id) {
 
   el.innerHTML = `
     <div class="article-top">
-      <a class="btn" href="#/">← Powrót do strony głównej</a>
+      <a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a>
       <div class="top-actions">
-        <button type="button" class="btn btn-ico" data-action="save" data-id="${Utils.esc(a.id)}" aria-pressed="${Saved.has(a.id)}" aria-label="${Saved.has(a.id) ? 'Zapisano' : 'Zapisz'}"><svg viewBox="0 0 24 24" width="18" height="18" fill="${Saved.has(a.id) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg><span class="lbl">${Saved.has(a.id) ? 'Zapisano' : 'Zapisz'}</span></button>
-        <button type="button" class="btn btn-ico" data-action="share" data-id="${Utils.esc(a.id)}" aria-label="Udostępnij"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span class="lbl">Udostępnij</span></button>
+        <button type="button" class="btn btn-ico" data-action="save" data-id="${Utils.esc(a.id)}" aria-pressed="${Saved.has(a.id)}" aria-label="${Saved.has(a.id) ? 'Zapisano' : 'Zapisz'}">${ICON('bookmark', 18)}<span class="lbl">${Saved.has(a.id) ? 'Zapisano' : 'Zapisz'}</span></button>
+        <button type="button" class="btn btn-ico" data-action="share" data-id="${Utils.esc(a.id)}" aria-label="Udostępnij">${ICON('share', 18)}<span class="lbl">Udostępnij</span></button>
       </div>
     </div>
     
     ${articleHtml(a, state.plain.get(a.id))}
     <section class="reactions" id="reactions" data-article="${Utils.esc(a.id)}" aria-label="Reakcje" hidden></section>
+    <section class="cmt-bottom" id="cmt-bottom" data-article="${Utils.esc(a.id)}" aria-label="Napisz komentarz" hidden></section>
     ${pagerHtml}
     ${relatedHtml}`;
   enhanceGalleries(el);
@@ -1635,7 +1722,7 @@ async function igBackdrop(a, W, H, overlay) {
   ctx.fillStyle = '#111';
   ctx.fillRect(0, 0, W, H);
   let photoOk = true, img = null;
-  const src = getImage(a);
+  const src = getImage(a, true);
   try { img = await loadImage(src, !src.startsWith('data:')); }
   catch { photoOk = !a.image; try { img = await loadImage(Utils.placeholder(Utils.catsOf(a)[0])); } catch {} }
   if (img) {
@@ -1923,7 +2010,7 @@ async function renderInstagramImage(a, opts = {}) {
   // tło: zdjęcie (przycięte jak „cover”) albo kolorowy wzór kategorii
   ctx.fillStyle = '#111';
   ctx.fillRect(0, 0, W, H);
-  const src = getImage(a);
+  const src = getImage(a, true);
   let img = null;
   try { img = await loadImage(src, !src.startsWith('data:')); }
   catch { photoOk = !a.image; try { img = await loadImage(Utils.placeholder(Utils.catsOf(a)[0])); } catch {} }
@@ -2121,7 +2208,7 @@ function renderRanking() {
   }).join('');
 
   el.innerHTML = `
-    <div class="article-top"><a class="btn" href="#/">← Powrót do strony głównej</a></div>
+    <div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a></div>
     <header class="rank-head">
       <span class="rank-eyebrow">Recenzje</span>
       <h1 class="rank-title">Ranking ocen</h1>
@@ -2141,8 +2228,9 @@ function renderRanking() {
 const TIP_LOG_KEY = 'sliska_tip_log';
 
 function renderTip() {
+  TipShots.reset();
   $('#view-tip').innerHTML = `
-    <div class="article-top"><a class="btn" href="#/">← Powrót do strony głównej</a></div>
+    <div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a></div>
     <header class="rank-head">
       <span class="rank-eyebrow">Redakcja</span>
       <h1 class="rank-title">Zgłoś temat</h1>
@@ -2157,6 +2245,10 @@ function renderTip() {
         <small class="hint"><span id="tip-count">0</span>/2000</small></label>
       <label class="field"><span class="field-label">Link do źródła (opcjonalnie)</span>
         <input type="text" id="tip-link" maxlength="300" inputmode="url" placeholder="https://…" autocomplete="off"></label>
+      <div class="field"><span class="field-label">Zrzuty ekranu (opcjonalnie, do 4)</span>
+        <div class="tip-shots" id="tip-shots"></div>
+        <label class="btn tip-shot-add" id="tip-shot-add">${ICON('plus', 17)}<span>Dodaj zrzut ekranu</span><input type="file" id="tip-shot-file" accept="image/*" multiple hidden></label>
+        <small class="hint">Zrzuty widzi tylko redakcja. Zasłoń dane, których nie chcesz pokazywać.</small></div>
       <label class="field"><span class="field-label">Twój e-mail *</span>
         <input type="text" id="tip-email" maxlength="120" inputmode="email" placeholder="na ten adres odpiszemy" autocomplete="email">
         <small class="hint">Wymagany – na ten adres redakcja może odpowiedzieć.</small></label>
@@ -2166,6 +2258,50 @@ function renderTip() {
       <div><button type="submit" class="btn btn-primary" id="tip-send">Wyślij zgłoszenie</button></div>
     </form>`;
 }
+
+/** Zrzuty do zgłoszenia: zmniejszane w przeglądarce (do 1600 px, JPEG), wysyłane jako pliki przed samym zgłoszeniem. */
+const TipShots = {
+  list: [],
+  async add(files) {
+    for (const f of [...files].filter(f => /^image\//.test(f.type))) {
+      if (this.list.length >= 4) { toast('Maksymalnie 4 zrzuty ekranu.'); break; }
+      try { this.list.push(await this.shrink(f)); } catch { toast('Nie udało się wczytać obrazu.', 'error'); }
+    }
+    this.draw();
+  },
+  shrink(file) {
+    return new Promise((res, rej) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const s = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+        const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(b => b ? res({ blob: b, preview: URL.createObjectURL(b) }) : rej(new Error('blob')), 'image/jpeg', 0.85);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
+      img.src = url;
+    });
+  },
+  draw() {
+    const box = $('#tip-shots'); if (!box) return;
+    box.innerHTML = this.list.map((s, i) => `<span class="tip-shot"><img src="${s.preview}" alt="Zrzut ${i + 1}"><button type="button" data-tip-shot-del="${i}" aria-label="Usuń zrzut ${i + 1}">${ICON('x', 14)}</button></span>`).join('');
+    const add = $('#tip-shot-add'); if (add) add.hidden = this.list.length >= 4;
+  },
+  async upload(tipId) {
+    const keys = [];
+    for (let i = 0; i < this.list.length; i++) {
+      const r = await fetch(CONFIG.API_BASE + '/tips/shot', { method: 'POST', headers: { 'content-type': 'image/jpeg', 'x-tip': tipId, 'x-n': String(i) }, body: this.list[i].blob });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.key) throw new Error(d.error === 'rate' ? 'Za dużo zrzutów w krótkim czasie. Spróbuj za godzinę.' : d.error === 'size' ? 'Zrzut ekranu jest za duży.' : 'Nie udało się wysłać zrzutów ekranu.');
+      keys.push(d.key);
+    }
+    return keys;
+  },
+  reset() { this.list.forEach(s => URL.revokeObjectURL(s.preview)); this.list = []; }
+};
+document.addEventListener('change', e => { if (e.target.id === 'tip-shot-file') { TipShots.add(e.target.files); e.target.value = ''; } });
+document.addEventListener('click', e => { const b = e.target.closest('[data-tip-shot-del]'); if (b) { const s = TipShots.list.splice(Number(b.dataset.tipShotDel), 1)[0]; if (s) URL.revokeObjectURL(s.preview); TipShots.draw(); } });
 
 async function submitTip(e) {
   e.preventDefault();
@@ -2194,7 +2330,9 @@ async function submitTip(e) {
   btn.disabled = true;
   try {
     const tipId = Utils.uid('t_');
-    await DataService.addTip({ id: tipId, title, message, link, email, createdAt: new Date().toISOString() });
+    const shots = TipShots.list.length ? await TipShots.upload(tipId) : [];
+    await DataService.addTip({ id: tipId, title, message, link, email, shots, createdAt: new Date().toISOString() });
+    TipShots.reset();
     notifyTip(tipId, 'topic');
     try { localStorage.setItem(TIP_LOG_KEY, JSON.stringify([...log, Date.now()])); } catch { /* ignoruj */ }
     $('#view-tip').innerHTML = `
@@ -2296,7 +2434,7 @@ function legalHtml(doc) {
 
 function renderLegal(doc) {
   $('#view-legal').innerHTML = `
-    <div class="article-top"><a class="btn" href="#/">← Powrót do strony głównej</a>
+    <div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a>
       <div class="top-actions"><a class="btn${doc === 'o-nas' ? ' btn-primary' : ''}" href="#/o-nas">O nas</a><a class="btn${doc === 'prywatnosc' ? ' btn-primary' : ''}" href="#/prywatnosc">Polityka prywatności</a><a class="btn${doc === 'regulamin' ? ' btn-primary' : ''}" href="#/regulamin">Regulamin</a></div></div>
     
     <article class="legal">${legalHtml(doc)}</article>`;
@@ -2328,7 +2466,7 @@ function renderSaved() {
   const el = $('#view-saved');
   const list = Saved.ids().map(id => publishedArticles().find(a => a.id === id)).filter(Boolean);
   el.innerHTML = `
-    <div class="article-top"><a class="btn" href="#/">← Powrót do strony głównej</a></div>
+    <div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a></div>
     <h1 class="panel-title">Zapisane na później</h1>
     <p class="muted">Lista jest zapamiętana tylko w tej przeglądarce – nie wymaga konta.</p>
     ${list.length
@@ -2624,52 +2762,66 @@ function newBannerHtml() {
     <button type="button" class="btn btn-sm" data-action="toggle-new">${state.onlyNew ? 'Wszystkie' : 'Tylko nowe'}</button></div>`;
 }
 
-/* ---------- Podpowiedzi w wyszukiwarce ---------- */
+/* ---------- Podpowiedzi w wyszukiwarce ----------
+   Osoby (słownik + wykonawcy recenzji), redakcja, tagi i artykuły. Bez polskich znaków i z literówkami:
+   „kred” → Lucyna Kredka, „lucyna kretka” też. */
+function sgWordHit(t, w) {
+  if (w.startsWith(t)) return 0;
+  if (t.length >= 4) {
+    const max = t.length <= 6 ? 1 : 2;
+    if (editDistance(t, w.slice(0, t.length), max) <= max || editDistance(t, w, max) <= max) return 1;
+  }
+  return -1;
+}
+/** Wynik dopasowania nazwy do zapytania: 0 najlepszy … 3 literówka; null = brak. */
+function sgScore(fq, tokens, label, aliases) {
+  const k = Utils.fold(label).replace(/[^a-z0-9]+/g, ' ').trim();
+  const flat = k.replace(/ /g, '');
+  if (k.startsWith(fq) || flat.startsWith(fq.replace(/ /g, ''))) return 0;
+  const words = k.split(' ').concat((aliases || []).map(x => Utils.fold(x).replace(/[^a-z0-9]+/g, '')));
+  let fuzzy = false;
+  const all = tokens.every(t => words.some(w => { const h = sgWordHit(t, w) ; if (h === 1) fuzzy = true; return h >= 0 || (w.length >= 4 && t.startsWith(w)); }));
+  if (all) return fuzzy ? 3 : 1;
+  if (flat.includes(fq.replace(/ /g, ''))) return 2;
+  return null;
+}
 function searchSuggestions(q) {
-  const fq = Utils.fold(q.trim());
+  const fq = Utils.fold(q.trim()).replace(/[^a-z0-9]+/g, ' ').trim();
   if (fq.length < 2) return { names: [], arts: [] };
-  const names = new Map();
+  const tokens = fq.split(' ').filter(Boolean);
   const pub = publishedArticles();
+  const names = new Map();
+  const add = (key, e) => { const cur = names.get(key); if (cur) cur.n++; else names.set(key, { ...e, n: 1 }); };
+  const people = new Map((TAX ? TAX.PEOPLE : []).map(p => [p[0], p]));
   pub.forEach(a => {
-    if (a.review && a.review.artist && a.review.artist.trim()) {
-      const k = Utils.fold(a.review.artist.trim());
-      const e = names.get(k) || { label: a.review.artist.trim(), type: 'artist', n: 0 };
-      e.n++; names.set(k, e);
-    }
+    const artist = a.review && a.review.artist && a.review.artist.trim();
+    if (artist) { const t = Utils.fold(artist).replace(/[^a-z0-9]+/g, ''); add('p:' + t, { label: people.has(t) ? people.get(t)[1] : artist, type: 'artist', aliases: people.has(t) ? people.get(t)[2] : [] }); }
+    Utils.tagsOf(a).forEach(t => {
+      const tk = Utils.fold(t).replace(/[^a-z0-9]+/g, '');
+      if (people.has(tk)) { if (!(artist && Utils.fold(artist).replace(/[^a-z0-9]+/g, '') === tk)) add('p:' + tk, { label: people.get(tk)[1], type: 'person', tag: t, aliases: people.get(tk)[2] }); }
+      else add('t:' + tk, { label: t, type: 'tag' });
+    });
+    if (!a.quick && a.author) add('r:' + authorKey(a.author), { label: a.author, type: 'author' });
   });
-  pub.forEach(a => {
-    if (a.quick || !a.author) return;
-    const k = 'r:' + authorKey(a.author);
-    const e = names.get(k) || { label: a.author, type: 'author', n: 0 };
-    e.n++; names.set(k, e);
-  });
-  pub.forEach(a => Utils.tagsOf(a).forEach(t => {
-    const k = Utils.fold(t);
-    const e = names.get(k) || { label: t, type: 'tag', n: 0 };
-    e.n++; names.set(k, e);
-  }));
   const scored = [];
-  names.forEach((e, k) => {
-    const ws = k.replace(/^r:/, '').split(/\s+/);
-    let s = null;
-    const kk = k.replace(/^r:/, '');
-    if (kk.startsWith(fq)) s = 0;
-    else if (ws.some(w => w.startsWith(fq))) s = 1;
-    else if (kk.includes(fq)) s = 2;
-    else if (fq.length >= 4) { const max = fq.length <= 6 ? 1 : 2; if (ws.some(w => editDistance(fq, w, max) <= max)) s = 3; }
-    if (s !== null) scored.push({ ...e, s });
-  });
+  names.forEach(e => { const s = sgScore(fq, tokens, e.label, e.aliases); if (s !== null) scored.push({ ...e, s }); });
   scored.sort((a, b) => a.s - b.s || b.n - a.n);
-  return { names: scored.slice(0, 6), arts: pub.filter(a => SearchIndex.matches(a, q)).slice(0, 3) };
+  const tf = a => sgScore(fq, tokens, a.title) !== null ? 0 : 1;
+  const arts = pub.filter(a => SearchIndex.matches(a, q)).map(a => [tf(a), a]).sort((x, y) => x[0] - y[0]).slice(0, 4).map(x => x[1]);
+  return { names: scored.slice(0, 6), arts };
 }
 
 function renderSearchSuggest() {
   const input = $('#search-input'), box = $('#search-suggest');
   const { names, arts } = searchSuggestions(input.value);
   if (!names.length && !arts.length) { box.hidden = true; input.setAttribute('aria-expanded', 'false'); return; }
-  const nameHtml = names.map(n => `<button type="button" class="sg-item" role="option" data-href="${n.type === 'artist' ? '#/artysta/' : n.type === 'author' ? '#/redaktor/' : '#/tag/'}${encodeURIComponent(n.label)}"><span class="sg-ico">${n.type === 'artist' ? '♪' : n.type === 'author' ? '✎' : '#'}</span><span class="sg-text">${Utils.esc(n.label)}</span><small>${n.type === 'author' ? 'redaktor · ' : ''}${n.n} ${plural(n.n, 'artykuł', 'artykuły', 'artykułów')}</small></button>`).join('');
-  const artHtml = arts.map(a => `<button type="button" class="sg-item" role="option" data-href="#/artykul/${encodeURIComponent(a.id)}"><span class="sg-ico">→</span><span class="sg-text">${Utils.esc(a.title)}</span></button>`).join('');
-  box.innerHTML = (nameHtml ? `<div class="sg-head">Wykonawcy, redaktorzy i tagi</div>${nameHtml}` : '') + (artHtml ? `<div class="sg-head">Artykuły</div>${artHtml}` : '');
+  const cnt = n => `${n.n} ${plural(n.n, 'artykuł', 'artykuły', 'artykułów')}`;
+  const href = n => n.type === 'artist' ? '#/artysta/' + encodeURIComponent(n.label) : n.type === 'person' ? '#/tag/' + encodeURIComponent(n.tag) : n.type === 'author' ? '#/redaktor/' + encodeURIComponent(n.label) : '#/tag/' + encodeURIComponent(n.label);
+  const item = n => `<button type="button" class="sg-item" role="option" data-href="${href(n)}"><span class="sg-ico">${n.type === 'tag' ? '#' : ICON(n.type === 'author' ? 'pencil' : 'user', 15)}</span><span class="sg-text">${Utils.esc(n.label)}</span><small>${n.type === 'author' ? 'redakcja · ' : ''}${cnt(n)}</small></button>`;
+  const group = (title, list) => list.length ? `<div class="sg-head">${title}</div>${list.map(item).join('')}` : '';
+  const ppl = names.filter(n => n.type === 'artist' || n.type === 'person'), red = names.filter(n => n.type === 'author'), tags = names.filter(n => n.type === 'tag');
+  const artHtml = arts.map(a => `<button type="button" class="sg-item sg-art" role="option" data-href="#/artykul/${encodeURIComponent(a.id)}"><img class="sg-thumb" src="${Utils.esc(thumbFor(a))}" alt="" loading="lazy" data-cat="${Utils.esc(Utils.catsOf(a)[0] || '')}"><span class="sg-text">${Utils.esc(a.title)}<small>${Utils.esc(Utils.catsOf(a)[0] || '')}${a.createdAt ? ' · ' + Utils.esc(new Date(a.createdAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })) : ''}</small></span></button>`).join('');
+  box.innerHTML = group('Osoby', ppl) + group('Redakcja', red) + group('Tagi', tags) + (artHtml ? `<div class="sg-head">Artykuły</div>${artHtml}` : '');
   box.hidden = false;
   input.setAttribute('aria-expanded', 'true');
 }
@@ -2699,20 +2851,25 @@ function quickItemHtml(a, withAdmin) {
   const src = a.link
     ? `<span class="quick-from">Źródło:</span> <a class="quick-src" href="${Utils.esc(a.link)}" target="_blank" rel="noopener noreferrer">${Utils.esc(srcName || 'link')} →</a>`
     : (srcName ? `<span class="quick-from">Źródło:</span> <span class="quick-src quick-src-plain">${Utils.esc(srcName)}</span>` : '');
-  return `<li class="quick-item">
+  const grown = quickExpanded(a);
+  return `<li class="quick-item" id="q-${Utils.esc(a.id)}">
     <time class="quick-time" datetime="${Utils.esc(a.createdAt)}">${Utils.formatTime(a.createdAt)}</time>
     <div class="quick-body">
-      <p>${Utils.esc(a.title)}</p>
+      <p><a class="quick-link" href="#/szybkie/${encodeURIComponent(a.id)}">${Utils.esc(a.title)}</a></p>
+      ${grown ? `<a class="quick-grown" href="#/artykul/${encodeURIComponent(grown.id)}">${ICON('arrow', 14)}<span><b>Rozwinęliśmy to:</b> ${Utils.esc(grown.title)}</span></a>` : ''}
       <div class="quick-meta">${src}<button type="button" class="quick-share" data-action="quick-share" data-id="${Utils.esc(a.id)}">Udostępnij</button></div>
     </div>
   </li>`;
 }
 
-/* ---- udostępnianie nowinki ---- */
+/** Artykuł, który rozwija tę nowinkę (pole fromQuick w artykule). */
+function quickExpanded(q) { return publishedArticles().find(x => !x.quick && x.fromQuick === q.id) || null; }
+
+/* ---- udostępnianie nowinki: własny adres z podglądem (news.sliska.pl/a/<id>) ---- */
 async function shareQuick(id) {
   const a = state.articles.find(x => x.id === id);
   if (!a) return;
-  const url = a.link || (location.href.split('#')[0] + '#/szybkie');
+  const url = CONFIG.OG_WORKER ? 'https://news.sliska.pl/a/' + encodeURIComponent(a.id) : location.href.split('#')[0] + '#/szybkie/' + encodeURIComponent(a.id);
   if (navigator.share) {
     try { await navigator.share({ url }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
   }
@@ -2734,20 +2891,23 @@ function renderQuick() {
   const list = publishedQuick();
   const shown = list.slice(0, state.quickVisible || 30);
   const groups = [];
-  shown.forEach(a => {
+  const fid = currentRoute().id;
+  shown.filter(a => a.id !== fid).forEach(a => {
     const label = quickDayLabel(a.createdAt);
     const g = groups[groups.length - 1];
     if (g && g.label === label) g.items.push(a); else groups.push({ label, items: [a] });
   });
+  const focusId = currentRoute().id, focus = focusId ? list.find(a => a.id === focusId) : null;
   el.innerHTML = `
-    <div class="article-top"><a class="btn" href="#/">← Powrót do strony głównej</a>
+    <div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a>
       </div>
     <header class="rank-head">
       <span class="rank-eyebrow">Krótko i na temat</span>
       <h1 class="rank-title">Nowinki z Poślizgiem</h1>
     </header>
+    ${focus ? `<section class="quick-focus" aria-label="Nowinka"><span class="qf-eyebrow">${ICON('bolt', 15)}Nowinka · ${Utils.esc(quickDayLabel(focus.createdAt))}, ${Utils.esc(Utils.formatTime(focus.createdAt))}</span><ul class="quick-list">${quickItemHtml(focus, true)}</ul></section>${groups.length ? '<h2 class="quick-more-title">Pozostałe nowinki</h2>' : ''}` : ''}
     ${groups.length ? groups.map(g => `<section class="quick-day"><h2 class="quick-day-title">${g.label}</h2><ul class="quick-list">${g.items.map(a => quickItemHtml(a, true)).join('')}</ul></section>`).join('')
-      : '<div class="empty-state"><p>Nie ma jeszcze nowinek. Zajrzyj tu niedługo.</p></div>'}
+      : focus ? '' : '<div class="empty-state"><p>Nie ma jeszcze nowinek. Zajrzyj tu niedługo.</p></div>'}
     ${list.length > shown.length ? '<div class="load-more"><button type="button" class="btn" data-action="quick-more">Pokaż starsze</button></div>' : ''}`;
 }
 
@@ -2951,6 +3111,41 @@ const ago = ms => {
 const readerAvatar = (name, av, pub) => av ? `<img src="${CONFIG.API_BASE}/avatar/${Utils.esc(pub)}.jpg?v=${av}" alt="" loading="lazy">` : `<span>${Utils.esc((name || '?').trim().slice(0, 2).toUpperCase())}</span>`;
 
 /* ---- komentarze pod artykułem ---- */
+/** Reakcje pod komentarzami: 👍 😂 🔥 (bez konta, token przeglądarki). */
+const CRX = [['like', '👍', 'Zgadzam się'], ['haha', '😂', 'Śmieszne'], ['fire', '🔥', 'Ogień']];
+const CRx = {
+  article: '', counts: {}, mine: {},
+  async load(id) {
+    this.article = id; this.counts = {}; this.mine = {};
+    try {
+      const r = await fetch(CONFIG.API_BASE + '/creact?article=' + encodeURIComponent(id) + '&tok=' + encodeURIComponent(Votes.token()), { cache: 'no-store' });
+      const d = r.ok ? await r.json() : null;
+      if (!d || this.article !== id) return;
+      this.counts = d.counts || {}; this.mine = d.mine || {};
+      $$('.cmt-rx[data-cid]').forEach(el => { el.outerHTML = cmtRxHtml(Number(el.dataset.cid)); });
+    } catch { /* bez Workera przyciski zostają z zerami */ }
+  },
+  async toggle(cid, kind) {
+    const prev = { mine: this.mine[cid] || '', counts: { ...(this.counts[cid] || {}) } };
+    const next = prev.mine === kind ? '' : kind, c = { ...prev.counts };
+    if (prev.mine) c[prev.mine] = Math.max(0, (c[prev.mine] || 0) - 1);
+    if (next) c[next] = (c[next] || 0) + 1;
+    this.counts[cid] = c; this.mine[cid] = next; this.paint(cid);
+    try {
+      const r = await fetch(CONFIG.API_BASE + '/creact', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ article: this.article, cid, tok: Votes.token(), kind: next }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error === 'rate' ? 'Za dużo reakcji naraz. Poczekaj chwilę.' : 'Nie udało się zapisać reakcji.');
+      this.counts[cid] = d.counts || c; this.mine[cid] = d.mine || ''; this.paint(cid);
+    } catch (ex) { this.counts[cid] = prev.counts; this.mine[cid] = prev.mine; this.paint(cid); toast(ex.message, 'error'); }
+  },
+  paint(cid) { const el = document.querySelector(`.cmt-rx[data-cid="${cid}"]`); if (el) el.outerHTML = cmtRxHtml(cid); }
+};
+function cmtRxHtml(cid) {
+  const c = CRx.counts[cid] || {}, mine = CRx.mine[cid] || '';
+  return `<span class="cmt-rx" data-cid="${cid}">${CRX.map(([k, e, l]) => `<button type="button" class="crx${mine === k ? ' is-on' : ''}" data-crx="${k}" data-cid="${cid}" aria-pressed="${mine === k}" title="${l}"><span aria-hidden="true">${e}</span>${c[k] ? `<b>${c[k]}</b>` : ''}</button>`).join('')}</span>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-crx]'); if (b) CRx.toggle(Number(b.dataset.cid), b.dataset.crx); });
+
 const Cmt = { article: null, list: [], off: false, ok: false, expanded: false, sending: false, msg: '', replyTo: null, focus: 0 };
 const CMT_SHOWN = 5;
 const CMT_CUT = 220;               // dłuższe komentarze są skracane do tylu znaków
@@ -2966,7 +3161,33 @@ function placeComments() {
   if (to && box.parentElement !== to) to.appendChild(box);
   $('#side-right').hidden = wide ? false : $('#side-right').dataset.hasList !== '1';
 }
-window.matchMedia(SIDE_MQ).addEventListener('change', placeComments);
+window.matchMedia(SIDE_MQ).addEventListener('change', () => { placeComments(); drawCmtBottom(); });
+
+/** Na laptopie komentarze są w panelu po prawej – pod artykułem dodatkowe pole, żeby nie wracać na górę. */
+function drawCmtBottom(note) {
+  const box = $('#cmt-bottom'); if (!box) return;
+  const wide = window.matchMedia(SIDE_MQ).matches;
+  const can = wide && Cmt.ok && box.dataset.article === Cmt.article && !!$('#cmt-form');
+  box.hidden = !can; if (!can) return;
+  const n = Cmt.list.filter(c => c.status === 'ok').length;
+  const keep = $('#cmt-bottom-text') ? $('#cmt-bottom-text').value : '';
+  box.innerHTML = `<div class="cb-head"><h2>Co o tym myślisz?</h2><button type="button" class="cb-all" data-cb-up>${ICON('chat', 16)}${n ? `Komentarze (${n})` : 'Komentarze'} ↑</button></div>
+    <form class="cb-form" id="cmt-bottom-form"><textarea id="cmt-bottom-text" rows="3" maxlength="${isOwnerRole() ? 20000 : 600}" placeholder="${Utils.esc(($('#cmt-text') && $('#cmt-text').placeholder) || 'Napisz komentarz…')}"></textarea>
+      <div class="cb-row"><small class="cb-note" id="cmt-bottom-note">${note ? Utils.esc(note) : ''}</small><button type="submit" class="btn btn-primary btn-sm" id="cmt-bottom-send">Opublikuj</button></div></form>`;
+  $('#cmt-bottom-text').value = keep;
+}
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'cmt-bottom-form') return;
+  e.preventDefault();
+  const t = $('#cmt-bottom-text'), main = $('#cmt-text'); if (!t || !main) return;
+  const text = t.value.trim(); if (text.length < 2 && !isOwnerRole()) return;
+  Cmt.replyTo = null; main.value = text; $('#cmt-bottom-send').disabled = true;
+  await sendComment({ preventDefault() {} });
+  const ok = !$('#cmt-text') || !$('#cmt-text').value;
+  if (ok) { const cur = $('#cmt-bottom-text'); if (cur) cur.value = ''; }
+  drawCmtBottom(ok ? (Cmt.msg || 'Opublikowano – Twój komentarz jest na górze listy w panelu Komentarze.') : (Cmt.msg || 'Nie udało się wysłać komentarza.'));
+});
+document.addEventListener('click', e => { if (e.target.closest('[data-cb-up]')) { const c = $('#comments'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
 
 function commentsSectionHtml(a) {
   if (!Readers.enabled() || a.quick || !isPublished(a)) return '';
@@ -2983,6 +3204,7 @@ async function initComments(a) {
     if (!$('#comments') || $('#comments').dataset.article !== a.id) return;
     Cmt.list = d.comments || []; Cmt.off = !!d.off; Cmt.closed = !!d.closed; Cmt.slow = Number(d.slow) || 0; Cmt.ok = d.enabled !== false;
   } catch { return; }          // brak API (np. tryb demonstracyjny) – sekcja zostaje ukryta
+  CRx.load(a.id);
   const want = Cmt.focus; Cmt.focus = 0;
   if (want) {
     const top = cmtTree().tops, c = Cmt.list.find(x => x.id === want);
@@ -3021,17 +3243,17 @@ function cmtTextHtml(c) {
 }
 
 function commentItemHtml(c, kids) {
-  const own = c.mine ? `<button type="button" class="cmt-act" data-cmt="delete" data-id="${c.id}">Usuń</button>` : '';
+  const own = c.mine ? `<button type="button" class="cmt-act" data-cmt="delete" data-id="${c.id}">${ICON('trash', 15)}<span>Usuń</span></button>` : '';
   const canEdit = c.mine && !Cmt.off && ['ok', 'pending'].includes(c.status) && (isOwnerRole() || Date.now() - c.at < CMT_EDIT_MS);
-  const edit = canEdit ? `<button type="button" class="cmt-act" data-cmt="edit" data-id="${c.id}">Edytuj</button>` : '';
+  const edit = canEdit ? `<button type="button" class="cmt-act" data-cmt="edit" data-id="${c.id}">${ICON('pencil', 15)}<span>Edytuj</span></button>` : '';
   const rep = !c.mine && Readers.loggedIn()
     ? (Cmt.reporting === c.id
       ? `<span class="cmt-why"><em>Powód:</em>${[['spam', 'Spam'], ['obraza', 'Obraza'], ['spoiler', 'Spoiler']].map(([v, l]) => `<button type="button" class="cmt-act" data-cmt="report-do" data-id="${c.id}" data-reason="${v}">${l}</button>`).join('')}<button type="button" class="cmt-act" data-cmt="report-cancel" data-id="${c.id}">Anuluj</button></span>`
-      : `<button type="button" class="cmt-act" data-cmt="report" data-id="${c.id}">Zgłoś</button>`) : '';
-  const adm = canMod() && !c.mine ? `<button type="button" class="cmt-act" data-cmt="admin-delete" data-id="${c.id}">Usuń</button>` : '';
+      : `<button type="button" class="cmt-act" data-cmt="report" data-id="${c.id}">${ICON('flag', 15)}<span>Zgłoś</span></button>`) : '';
+  const adm = canMod() && !c.mine ? `<button type="button" class="cmt-act is-danger" data-cmt="admin-delete" data-id="${c.id}" title="Usuń (moderacja)">${ICON('trash', 15)}<span>Usuń</span></button>` : '';
   const canReply = !Cmt.off && c.status === 'ok';
-  const reply = canReply ? `<button type="button" class="cmt-act" data-cmt="reply" data-id="${c.id}">Odpowiedz</button>` : '';
-  const link = c.status === 'ok' ? `<button type="button" class="cmt-act" data-cmt="link" data-id="${c.id}">Link</button>` : '';
+  const reply = canReply ? `<button type="button" class="cmt-act" data-cmt="reply" data-id="${c.id}">${ICON('reply', 15)}<span>Odpowiedz</span></button>` : '';
+  const link = c.status === 'ok' ? `<button type="button" class="cmt-act" data-cmt="link" data-id="${c.id}">${ICON('link', 15)}<span>Link</span></button>` : '';
   const sub = kids && kids.length ? `<ul class="cmt-replies">${kids.map(k => commentItemHtml(k)).join('')}</ul>` : '';
   return `<li class="cmt${c.status === 'pending' ? ' is-pending' : ''}" id="c-${c.id}">
     <div class="cmt-av avatar">${readerAvatar(c.name, c.av, c.u)}</div>
@@ -3039,13 +3261,14 @@ function commentItemHtml(c, kids) {
       <div class="cmt-head">${c.u ? `<a class="cmt-name" href="#/uzytkownik/${Utils.esc(c.u)}"><b>${Utils.esc(c.name)}</b></a>` : `<b>${Utils.esc(c.name)}</b>`}${roleBadge(c)}<time>${ago(c.at)}</time>${c.edited ? '<span class="cmt-edited">· edytowano</span>' : ''}</div>
       ${Cmt.editing === c.id ? `<div class="cmt-edit"><textarea id="cmt-edit-text" rows="3" maxlength="${isOwnerRole() ? 20000 : 600}">${Utils.esc(c.text)}</textarea><div class="cmt-row"><button type="button" class="btn btn-primary btn-sm" data-cmt="edit-save" data-id="${c.id}">Zapisz</button><button type="button" class="btn btn-sm" data-cmt="edit-cancel" data-id="${c.id}">Anuluj</button><small>Poprawki możliwe do 5 minut od publikacji.</small></div></div>` : cmtTextHtml(c)}
       ${c.status === 'pending' ? '<small class="cmt-wait">Czeka na zatwierdzenie przez redakcję</small>' : ''}
-      <div class="cmt-actions">${reply}${link}${edit}${own}${rep}${adm}</div>
+      <div class="cmt-actions">${c.status === 'ok' ? cmtRxHtml(c.id) : ''}${reply}${link}${edit}${own}${rep}${adm}</div>
       ${sub}
     </div>
   </li>`;
 }
 
-function drawComments() {
+function drawComments() { drawCommentsInner(); drawCmtBottom(); }
+function drawCommentsInner() {
   const box = $('#comments');
   if (!box || !Cmt.ok || box.dataset.article !== Cmt.article) return;
   box.hidden = false;
@@ -3060,7 +3283,7 @@ function drawComments() {
   else form = `<form class="cmt-form" id="cmt-form">${Cmt.replyTo ? `<div class="cmt-replying">Odpowiadasz użytkownikowi <b>${Utils.esc(Cmt.replyTo.name)}</b><button type="button" class="cmt-act" data-cmt="cancel-reply">Anuluj</button></div>` : ''}<textarea id="cmt-text" rows="3" maxlength="${isOwnerRole() ? 20000 : 600}" placeholder="${Cmt.replyTo ? 'Napisz odpowiedź' : 'Napisz komentarz'} jako ${Utils.esc(Readers.loggedIn() ? Readers.me.name : 'Niezmoczona (numer nadamy sami)')}…" aria-label="Komentarz"></textarea>
       <div class="cmt-row"><small><span id="cmt-count">0</span>${isOwnerRole() ? '' : '/600'}</small><button type="submit" class="btn btn-primary btn-sm" id="cmt-send">Opublikuj</button></div>${Cmt.slow && !canMod() ? `<small class="cmt-slow">Tryb wolniejszej dyskusji: odstęp ${Cmt.slow >= 60 ? Cmt.slow / 60 + ' min' : Cmt.slow + ' s'} między komentarzami.</small>` : ''}${!Readers.loggedIn() ? '<small class="cmt-guest">Piszesz jako gość. <button type="button" class="cmt-act" data-cmt="login">Zaloguj się</button>, żeby mieć własną nazwę oraz edytować i usuwać komentarze.</small>' : ''}</form>`;
   const keep = $('#cmt-text') ? $('#cmt-text').value : '';
-  const closeBtn = canMod() && (Cmt.closed || !Cmt.off) ? `<button type="button" class="cmt-act cmt-close" data-cmt="close-toggle">${Cmt.closed ? 'Otwórz komentarze' : 'Zamknij komentarze'}</button>` : '';
+  const closeBtn = canMod() && (Cmt.closed || !Cmt.off) ? `<button type="button" class="cmt-act cmt-close" data-cmt="close-toggle">${ICON(Cmt.closed ? 'unlock' : 'lock', 15)}${Cmt.closed ? 'Otwórz komentarze' : 'Zamknij komentarze'}</button>` : '';
   box.innerHTML = `<h2 class="cmt-title">Komentarze <span>${visible.length}</span>${closeBtn}</h2>
     ${form}
     ${Cmt.msg ? `<p class="cmt-msg">${Utils.esc(Cmt.msg)}</p>` : ''}
@@ -3315,7 +3538,7 @@ function renderAccount() {
   if (!Readers.enabled()) { el.innerHTML = notFoundHtml('Konta czytelników nie są jeszcze włączone.'); return; }
   if (Readers.loading) { el.innerHTML = '<p class="muted">Ładowanie…</p>'; return; }
   if (!Readers.loggedIn()) {
-    el.innerHTML = `<div class="article-top"><a class="btn" href="#/">← Powrót do strony głównej</a></div><h1 class="panel-title">Konto czytelnika</h1>
+    el.innerHTML = `<div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a></div><h1 class="panel-title">Konto czytelnika</h1>
       <div class="panel st-card"><p class="muted">Załóż konto, żeby komentować artykuły i mieć własny profil.</p><div class="cmt-row"><button type="button" class="btn btn-primary" data-cmt="login">Zaloguj się</button><button type="button" class="btn" id="acc-register">Załóż konto</button></div></div>`;
     return;
   }
@@ -3326,7 +3549,7 @@ function renderAccount() {
   const tabsHtml = canMod() ? `<div class="ptabs" role="tablist" aria-label="Sekcje konta"><a class="ptab ${tab ? '' : 'is-active'}" href="#/konto">Konto</a><a class="ptab ${tab === 'komentarze' ? 'is-active' : ''}" href="#/konto/komentarze">Komentarze</a></div>` : '';
   const pubLink = Readers.me && Readers.me.pub ? `<a class="btn btn-sm" href="#/uzytkownik/${Utils.esc(Readers.me.pub)}">Zobacz profil publiczny</a>` : '';
   const vChip = Readers.verified() ? '<span class="acc-chip is-ok">E-mail potwierdzony</span>' : '<span class="acc-chip is-warn">E-mail niepotwierdzony</span>';
-  el.innerHTML = `<div class="article-top"><a class="btn" href="#/">← Powrót do strony głównej</a></div>
+  el.innerHTML = `<div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a></div>
     <h1 class="panel-title">Moje konto</h1>
     <section class="panel acc-hero">
       <div class="acc-cover" aria-hidden="true"></div>
@@ -3478,7 +3701,7 @@ function bindReaderEvents() {
 /* ---- moderacja komentarzy (Moje konto → Komentarze; Moderator, Redaktor, Właściciel) ---- */
 const Mod = { all: false };
 const ROLE_LABEL = { owner: 'Właściciel Portalu', chief: 'Redaktor naczelny', editor: 'Redaktor', mod: 'Moderator' };
-const CROWN_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.6 10H4.6L3 8zm1.9 12h14.2v1.6H4.9V20z"/></svg>';
+const CROWN_SVG = '<svg class="ic" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">' + ICONS.crown + '</svg>';
 const crownHtml = () => `<span class="crown" title="Moderator" role="img" aria-label="Moderator">${CROWN_SVG}</span>`;
 const MOD_ST = { pending: 'Czeka', reported: 'Zgłoszony', hidden: 'Ukryty', ok: 'Widoczny' };
 const myRole = () => (Readers.me && Readers.me.role) || '';
@@ -3520,7 +3743,7 @@ function modApply(item, act) {
   const st = item.querySelector('.mc-st'); st.className = 'mc-st is-' + status; st.textContent = MOD_ST[status];
   const first = item.querySelector('.mc-actions button');
   first.dataset.modAct = status === 'ok' ? 'hide' : 'approve';
-  first.textContent = status === 'ok' ? 'Ukryj' : 'Przywróć';
+  first.innerHTML = status === 'ok' ? ICON('hide', 16) + '<span>Ukryj</span>' : ICON('undo', 16) + '<span>Przywróć</span>';
   first.disabled = false;
 }
 
@@ -3556,7 +3779,7 @@ function modItemHtml(c) {
     ${c.reasons ? `<small class="mc-why">Powody zgłoszeń: ${Utils.esc(modReasons(c.reasons))}</small>` : ''}
     <a class="mc-art" href="#/artykul/${encodeURIComponent(c.article)}?k=${c.id}">${Utils.esc(a ? a.title : c.article)}</a>
     <p class="mc-text">${Utils.esc(c.text).replace(/\n/g, '<br>')}</p>
-    <div class="mc-actions">${c.status !== 'ok' ? `<button type="button" data-mod-act="approve">${approve}</button>` : '<button type="button" data-mod-act="hide">Ukryj</button>'}<button type="button" class="is-danger" data-mod-act="delete">Usuń</button></div>
+    <div class="mc-actions">${c.status !== 'ok' ? `<button type="button" data-mod-act="approve">${ICON(c.status === 'hidden' ? 'undo' : 'check', 16)}<span>${approve}</span></button>` : `<button type="button" data-mod-act="hide">${ICON('hide', 16)}<span>Ukryj</span></button>`}<button type="button" class="is-danger" data-mod-act="delete">${ICON('trash', 16)}<span>Usuń</span></button></div>
   </article>`;
 }
 
@@ -3634,8 +3857,11 @@ function routeCore() {
   } else if (r.name === 'quick') {
     showView('quick');
     document.title = `Nowinki z Poślizgiem – ${CONFIG.SITE_NAME}`;
-    setMeta('Nowinki z Poślizgiem', 'Krótkie newsy ze świata muzyki i rozrywki – jedno zdanie i link do źródła.');
+    const q1 = r.id ? publishedQuick().find(a => a.id === r.id) : null;
+    if (q1) document.title = `${q1.title.slice(0, 70)} – Nowinki z Poślizgiem`;
+    setMeta('Nowinki z Poślizgiem', q1 ? q1.title : 'Krótkie newsy ze świata muzyki i rozrywki – jedno zdanie i link do źródła.');
     renderQuick();
+    if (q1) window.scrollTo(0, 0);
   } else if (r.name === 'saved') {
     showView('saved');
     document.title = `Zapisane na później – ${CONFIG.SITE_NAME}`;
@@ -3692,13 +3918,8 @@ function routeCore() {
 
 /* ---------- Kategorie ---------- */
 const CAT_ICONS = {
-  'Wszystkie': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
-  'Muzyka': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>',
-  'Recenzje': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></svg>',
-  'Dramy': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2-4 .3 1.5 1 2 1.8 2.2C11 8.5 11 5.5 12 3z"/></svg>',
-  'Gwiazdy': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></svg>',
-  'Polityka': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V10M9.5 21V10M14.5 21V10M19 21V10M2.5 10 12 4l9.5 6z"/></svg>',
-  'Inne': '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg>'
+  'Wszystkie': ICON('grid', 17), 'Muzyka': ICON('music', 17), 'Recenzje': ICON('star', 17), 'Dramy': ICON('flame', 17),
+  'Gwiazdy': ICON('spark', 17), 'Polityka': ICON('bank', 17), 'Inne': ICON('dots', 17)
 };
 function buildCategoryNav() {
   $('#category-nav').innerHTML = [ALL, ...CATEGORIES].map(c =>
@@ -3838,6 +4059,17 @@ function bindEvents() {
     state.visible += CONFIG.PAGE_SIZE;
     renderHome();
   });
+  // Nieskończone przewijanie: kolejne artykuły dociągają się same przy dojeździe do dołu (przycisk zostaje jako zapas)
+  if ('IntersectionObserver' in window) {
+    const lm = $('#load-more');
+    const io = new IntersectionObserver(es => {
+      if (!es.some(e => e.isIntersecting) || lm.hidden || currentRoute().name !== 'home') return;
+      state.visible += CONFIG.PAGE_SIZE; renderHome();
+      io.unobserve(lm); setTimeout(() => io.observe(lm), 450);          // ponowne sprawdzenie, gdy dół wciąż jest na ekranie
+    }, { rootMargin: '0px 0px 600px 0px' });
+    io.observe(lm);
+    new MutationObserver(() => { if (!lm.hidden) { io.unobserve(lm); io.observe(lm); } }).observe(lm, { attributes: true, attributeFilter: ['hidden'] });
+  }
 
   // Akcje (Edytuj / Usuń / Udostępnij …) + kliknięcie w cały kafel
   document.addEventListener('click', e => {
@@ -4011,6 +4243,21 @@ function updateScrollUi() {
     }
     bar.style.width = (Math.max(0, Math.min(1, p)) * 100) + '%';
   }
+  rxFloatSync(isArticle);
+}
+
+/** Pływający pasek reakcji: widoczny w trakcie czytania, chowa się, gdy na ekranie są reakcje na dole albo komentarze. */
+function rxFloatSync(isArticle) {
+  const f = $('#rx-float'); if (!f) return;
+  const box = $('#reactions'), body = $('#view-article .article-body');
+  let show = false;
+  if (isArticle && box && !box.hidden && body && f.dataset.article === box.dataset.article) {
+    const b = body.getBoundingClientRect(), r = box.getBoundingClientRect(), H = window.innerHeight;
+    show = b.top < H * 0.35 && r.top > H - 40;
+  }
+  f.classList.toggle('is-on', show);
+  f.setAttribute('aria-hidden', show ? 'false' : 'true');
+  f.inert = !show;
 }
 
 /* ---------- Start ---------- */
@@ -4077,7 +4324,7 @@ function initRail() {
   logo.insertAdjacentHTML('beforeend', '<img class="logo-mini" src="favicon.svg" alt="" aria-hidden="true">');
   $$('.main-nav .nav-link').forEach(a => { a.title = a.textContent.trim(); });
   const t = document.createElement('button'); t.type = 'button'; t.id = 'rail-toggle'; t.className = 'rail-toggle';
-  t.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Zwiń menu</span>';
+  t.innerHTML = ICON('collapse', 18) + '<span>Zwiń menu</span>';
   const label = () => { const c = document.body.classList.contains('rail-c'); t.title = c ? 'Rozwiń menu' : 'Zwiń menu'; t.setAttribute('aria-label', t.title); };
   t.addEventListener('click', () => { const c = document.body.classList.toggle('rail-c'); try { localStorage.setItem('sliska_rail', c ? 'c' : 'e'); } catch { /* ignoruj */ } label(); });
   top.appendChild(t); label();
