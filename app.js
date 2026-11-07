@@ -2228,7 +2228,7 @@ function renderRanking() {
 const TIP_LOG_KEY = 'sliska_tip_log';
 
 function renderTip() {
-  TipShots.reset();
+  TipShots.reset(); TipPhoto.reset();
   $('#view-tip').innerHTML = `
     <div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a></div>
     <header class="rank-head">
@@ -2243,6 +2243,13 @@ function renderTip() {
       <label class="field"><span class="field-label">Opis *</span>
         <textarea id="tip-message" rows="6" maxlength="2000" placeholder="Co się stało, kogo dotyczy, skąd o tym wiesz?"></textarea>
         <small class="hint"><span id="tip-count">0</span>/2000</small></label>
+      <div class="field"><span class="field-label">Zdjęcie główne * <em class="tip-ratio">16:9</em></span>
+        <div class="tip-photo" id="tip-photo">
+          <label class="tip-photo-empty" id="tip-photo-pick">${ICON('plus', 22)}<b>Dodaj zdjęcie główne</b><small class="tip-drop-txt">albo przeciągnij je tutaj</small><small>Poziome, w formacie 16:9 – np. 1600×900 px. Inne kadrujemy do 16:9.</small><input type="file" id="tip-photo-file" accept="image/jpeg,image/png,image/webp" hidden></label>
+          <div class="tip-photo-crop" id="tip-photo-crop" hidden><img id="tip-photo-img" alt="Zdjęcie główne – podgląd kadru 16:9" draggable="false"><span class="tip-photo-hint">Przeciągnij, aby ustawić kadr</span></div>
+        </div>
+        <div class="tip-photo-actions" id="tip-photo-actions" hidden><label class="btn btn-sm">Zmień zdjęcie<input type="file" id="tip-photo-file2" accept="image/jpeg,image/png,image/webp" hidden></label><button type="button" class="btn btn-sm" id="tip-photo-del">Usuń</button></div>
+        <small class="hint">Wymagane. Może trafić na górę artykułu – wyślij tylko zdjęcie, do którego masz prawa lub zgodę autora.</small></div>
       <label class="field"><span class="field-label">Link do źródła (opcjonalnie)</span>
         <input type="text" id="tip-link" maxlength="300" inputmode="url" placeholder="https://…" autocomplete="off"></label>
       <div class="field"><span class="field-label">Zrzuty ekranu (opcjonalnie, do 4)</span>
@@ -2300,6 +2307,77 @@ const TipShots = {
   },
   reset() { this.list.forEach(s => URL.revokeObjectURL(s.preview)); this.list = []; }
 };
+/** Zdjęcie główne zgłoszenia: kadr 16:9 ustawiany przeciąganiem, wysyłane jako JPEG 1600×900. */
+const TipPhoto = {
+  img: null, url: '', fx: .5, fy: .5,
+  async set(file) {
+    if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type)) { toast('Wybierz zdjęcie JPG, PNG lub WebP.', 'error'); return; }
+    if (file.size > 25e6) { toast('Zdjęcie jest za duże (maks. 25 MB).', 'error'); return; }
+    const url = URL.createObjectURL(file), img = new Image();
+    try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); } catch { URL.revokeObjectURL(url); toast('Nie udało się wczytać zdjęcia.', 'error'); return; }
+    if (img.naturalWidth < 640 || img.naturalHeight < 360) { URL.revokeObjectURL(url); toast('Zdjęcie jest za małe – minimum 640×360 px.', 'error'); return; }
+    this.reset(); this.img = img; this.url = url; this.fx = .5; this.fy = .5;
+    this.draw();
+  },
+  draw() {
+    const crop = $('#tip-photo-crop'); if (!crop) return;
+    const on = !!this.img;
+    crop.hidden = !on; $('#tip-photo-pick').hidden = on; $('#tip-photo-actions').hidden = !on;
+    $('#tip-photo').classList.toggle('is-set', on);
+    if (!on) return;
+    const el = $('#tip-photo-img'); if (el.src !== this.url) el.src = this.url;
+    el.style.objectPosition = (this.fx * 100) + '% ' + (this.fy * 100) + '%';
+    const r = this.img.naturalWidth / this.img.naturalHeight;
+    crop.classList.toggle('can-x', r > 16 / 9 + .01); crop.classList.toggle('can-y', r < 16 / 9 - .01);
+  },
+  /** przesunięcie kadru o dx, dy pikseli podglądu */
+  move(dx, dy) {
+    const crop = $('#tip-photo-crop'), w = crop.clientWidth, h = crop.clientHeight;
+    const sc = Math.max(w / this.img.naturalWidth, h / this.img.naturalHeight);
+    const ox = this.img.naturalWidth * sc - w, oy = this.img.naturalHeight * sc - h;
+    if (ox > 1) this.fx = Math.min(1, Math.max(0, this.fx - dx / ox));
+    if (oy > 1) this.fy = Math.min(1, Math.max(0, this.fy - dy / oy));
+    this.draw();
+  },
+  blob() {
+    const W = 1600, H = 900, iw = this.img.naturalWidth, ih = this.img.naturalHeight;
+    const sc = Math.max(W / iw, H / ih), sw = W / sc, sh = H / sc;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H);
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(this.img, (iw - sw) * this.fx, (ih - sh) * this.fy, sw, sh, 0, 0, W, H);
+    return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('blob')), 'image/jpeg', 0.88));
+  },
+  async upload(tipId) {
+    const r = await fetch(CONFIG.API_BASE + '/tips/shot', { method: 'POST', headers: { 'content-type': 'image/jpeg', 'x-tip': tipId, 'x-n': 'm' }, body: await this.blob() });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.key) throw new Error(d.error === 'rate' ? 'Za dużo zdjęć w krótkim czasie. Spróbuj za godzinę.' : d.error === 'size' ? 'Zdjęcie główne jest za duże.' : 'Nie udało się wysłać zdjęcia głównego.');
+    return d.key;
+  },
+  reset() { if (this.url) URL.revokeObjectURL(this.url); this.img = null; this.url = ''; this.draw(); }
+};
+document.addEventListener('change', e => { if (e.target.id === 'tip-photo-file' || e.target.id === 'tip-photo-file2') { TipPhoto.set(e.target.files[0]); e.target.value = ''; } });
+document.addEventListener('click', e => { if (e.target.closest('#tip-photo-del')) TipPhoto.reset(); });
+/* przeciągnięcie pliku ze zdjęciem na pole (komputer) */
+['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => {
+  const box = e.target.closest && e.target.closest('#tip-photo'); if (!box || ![...(e.dataTransfer && e.dataTransfer.types || [])].includes('Files')) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; box.classList.add('is-over');
+}));
+document.addEventListener('dragleave', e => { const box = e.target.closest && e.target.closest('#tip-photo'); if (box && !box.contains(e.relatedTarget)) box.classList.remove('is-over'); });
+document.addEventListener('drop', e => {
+  const box = e.target.closest && e.target.closest('#tip-photo'); if (!box) return;
+  e.preventDefault(); box.classList.remove('is-over');
+  const f = [...(e.dataTransfer.files || [])].find(x => /^image\//.test(x.type));
+  if (f) TipPhoto.set(f); else toast('Przeciągnij plik ze zdjęciem (JPG, PNG lub WebP).', 'error');
+});
+document.addEventListener('pointerdown', e => {
+  const crop = e.target.closest('#tip-photo-crop'); if (!crop || !TipPhoto.img) return;
+  e.preventDefault(); crop.setPointerCapture(e.pointerId); crop.classList.add('is-drag');
+  let x = e.clientX, y = e.clientY;
+  const mv = ev => { TipPhoto.move(ev.clientX - x, ev.clientY - y); x = ev.clientX; y = ev.clientY; };
+  const up = () => { crop.classList.remove('is-drag'); crop.removeEventListener('pointermove', mv); crop.removeEventListener('pointerup', up); crop.removeEventListener('pointercancel', up); };
+  crop.addEventListener('pointermove', mv); crop.addEventListener('pointerup', up); crop.addEventListener('pointercancel', up);
+});
 document.addEventListener('change', e => { if (e.target.id === 'tip-shot-file') { TipShots.add(e.target.files); e.target.value = ''; } });
 document.addEventListener('click', e => { const b = e.target.closest('[data-tip-shot-del]'); if (b) { const s = TipShots.list.splice(Number(b.dataset.tipShotDel), 1)[0]; if (s) URL.revokeObjectURL(s.preview); TipShots.draw(); } });
 
@@ -2314,6 +2392,7 @@ async function submitTip(e) {
   const email = $('#tip-email').value.trim().toLowerCase();
   if (title.length < 3) { err('Wpisz temat zgłoszenia (min. 3 znaki).'); $('#tip-title').focus(); return; }
   if (message.length < 10) { err('Opisz sprawę w kilku zdaniach (min. 10 znaków).'); $('#tip-message').focus(); return; }
+  if (!TipPhoto.img) { err('Dodaj zdjęcie główne (format 16:9).'); $('#tip-photo').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
   if (link && !/^https?:\/\/[^\s]+\.[^\s]+$/i.test(link)) { err('Link wygląda niepoprawnie.'); $('#tip-link').focus(); return; }
   if (!email) { err('Podaj adres e-mail, na który możemy odpisać.'); $('#tip-email').focus(); return; }
@@ -2330,9 +2409,10 @@ async function submitTip(e) {
   btn.disabled = true;
   try {
     const tipId = Utils.uid('t_');
+    const photo = await TipPhoto.upload(tipId);
     const shots = TipShots.list.length ? await TipShots.upload(tipId) : [];
-    await DataService.addTip({ id: tipId, title, message, link, email, shots, createdAt: new Date().toISOString() });
-    TipShots.reset();
+    await DataService.addTip({ id: tipId, title, message, link, email, photo, shots, createdAt: new Date().toISOString() });
+    TipShots.reset(); TipPhoto.reset();
     notifyTip(tipId, 'topic');
     try { localStorage.setItem(TIP_LOG_KEY, JSON.stringify([...log, Date.now()])); } catch { /* ignoruj */ }
     $('#view-tip').innerHTML = `
