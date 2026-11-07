@@ -136,7 +136,7 @@
     if (s) setTimeout(function () { var i = $('#search-input'); i && i.focus(); }, 60);
   }
   function mark() {
-    var h = location.hash || '#/', k = /^#\/szybkie/.test(h) ? 'quick' : /^#\/ranking/.test(h) ? 'ranking' : /^#\/zapisane/.test(h) ? 'saved' : (/^#\/(konto|redakcja|panel|ustawienia|zglos|plus)/.test(h) ? 'more' : (h === '#/' || /^#\/(kategoria|artykul)?/.test(h) && !/^#\/[a-z]/.test(h.replace(/^#\/(kategoria|artykul).*/, '')) ? 'home' : 'home'));
+    var h = location.hash || '#/', k = /^#\/szybkie/.test(h) ? 'quick' : /^#\/ranking/.test(h) ? 'ranking' : /^#\/zapisane/.test(h) ? 'saved' : (/^#\/(konto|redakcja|panel|ustawienia|zglos|spot|plus)/.test(h) ? 'more' : (h === '#/' || /^#\/(kategoria|artykul)?/.test(h) && !/^#\/[a-z]/.test(h.replace(/^#\/(kategoria|artykul).*/, '')) ? 'home' : 'home'));
     if (/^#\/(kategoria|artykul|tag|wykonawca|autor)/.test(h) || h === '#/' || h === '#' || h === '') k = 'home';
     bar.querySelectorAll('.m-tab').forEach(function (t) { t.classList.toggle('is-on', t.dataset.k === k); }); place();
   }
@@ -150,7 +150,7 @@
     var h = '<div class="m-grip"></div>';
     h += '<h3>Aplikacja</h3><div class="m-grid">' +
       link('#/redakcja', 'team', 'Redakcja') +
-      '<a class="m-item" href="spot">' + svg('spot') + '<span>Spot (reklama)</span></a>' +
+      link('#/spot', 'spot', 'Wyślij reklamę') +
       item('user', logged ? 'Moje konto' : 'Zaloguj się', 'data-m="account"') +
       item('moon', 'Motyw jasny/ciemny', 'data-m="theme"') +
       item('search', 'Szukaj w artykułach', 'data-m="search"', 'is-wide') + '</div>';

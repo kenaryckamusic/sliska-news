@@ -1499,6 +1499,7 @@ figure.article-gallery figcaption { margin-top: 6px; font: .85rem/1.4 var(--font
     justify-content: center;
   }
   .article-top > .btn:first-child::before { content: "←"; font-size: 1.15rem; }
+  .article-top > .btn:first-child svg { display: none; }
   /* stopka: ostatnia linia nie chowa się pod przyciskiem „do góry” */
   .site-footer .footer-inner { padding-bottom: 88px; }
 }

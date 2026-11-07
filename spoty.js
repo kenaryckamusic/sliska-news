@@ -28,7 +28,7 @@
   /* ====== „REKLAMA TUTAJ" – zaproszenie dla reklamodawców ======
      Gdy nie ma żadnej reklamy graficznej (CREATIVES puste), wszędzie pokazuje się to. Gdy są – tylko od czasu do czasu (CFG.houseChance).
      Kliknięcie prowadzi do formularza spot. Teksty: t = hasło, s = dopisek przy strzałce. Dopisuj własne. */
-  var HOUSE_LINK = 'spot';
+  var HOUSE_LINK = '#/spot';
   var HOUSE_TEXTS = [
     { t: 'Niech wielka Knaga smyra Twój ekran!', s: 'Wyślij swoją reklamę już teraz' },
     { t: 'Twoja reklama może tu nabrzmieć.', s: 'Wyślij ją, zanim ktoś ją wyprzedzi' },

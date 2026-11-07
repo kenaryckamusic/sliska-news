@@ -983,6 +983,7 @@ function currentRoute() {
   if (parts[0] === 'redakcja' || parts[0] === 'redaktorzy') return { name: 'authors' };
   if (parts[0] === 'ranking') return { name: 'ranking' };
   if (parts[0] === 'zglos') return { name: 'tip' };
+  if (parts[0] === 'spot' || parts[0] === 'reklama') return { name: 'spot' };
   if (parts[0] === 'prywatnosc' || parts[0] === 'regulamin') return { name: 'legal', doc: parts[0] };
   if (parts[0] === 'o-nas' || parts[0] === 'kontakt') return { name: 'legal', doc: 'o-nas' };
   if (parts[0] === 'zapisane') return { name: 'saved' };
@@ -2431,6 +2432,19 @@ async function submitTip(e) {
   }
 }
 
+/* ---------- Wyślij reklamę (spot) – formularz w spot-form.js ---------- */
+function renderSpot() {
+  const el = $('#view-spot');
+  if (!window.SpotForm) { el.innerHTML = notFoundHtml('Nie udało się wczytać formularza reklamy. Odśwież stronę.'); return; }
+  if (el.dataset.ready === '1' && el.querySelector('.spf')) { SpotForm.refreshUser(); return; }   // zostawiamy wgrane grafiki przy powrocie
+  SpotForm.mount(el, {
+    api: CONFIG.API_BASE,
+    user: () => (Readers.loggedIn() && Readers.user ? { name: Readers.hasName() ? Readers.me.name : '', email: Readers.user.email || '' } : null)
+  });
+  el.dataset.ready = '1';
+  window.scrollTo(0, 0);
+}
+
 /** Zgłoszenie trafiło do bazy – Worker wysyła push do redakcji (bez czekania na odpowiedź, błędy ignorujemy). */
 function notifyTip(id, kind) {
   try { fetch(CONFIG.API_BASE + '/tips/notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, kind }), keepalive: true }).catch(() => {}); } catch { /* ignoruj */ }
@@ -3694,6 +3708,7 @@ const PANEL_URL = /^dev\./.test(location.hostname) ? '/' : 'https://dev.sliska.p
 /** Kafelek profilu po lewej także dla zalogowanego czytelnika (w tym samym miejscu co u redaktora, bez funkcji redakcyjnych). */
 function renderReaderCard() {
   const rd = Readers.loggedIn();
+  try { if (window.SpotForm) SpotForm.refreshUser(); } catch { /* ignoruj */ }
   document.body.classList.toggle('is-reader', rd);
   document.body.classList.toggle('is-reader-only', rd);
   const me = Readers.me || {};
@@ -3865,7 +3880,7 @@ function modItemHtml(c) {
 
 /* ---------- Routing ---------- */
 function showView(name) {
-  ['home', 'article', 'ranking', 'notfound', 'tip', 'legal', 'saved', 'quick', 'account', 'user', 'authors'].forEach(v => { $('#view-' + v).hidden = v !== name; });
+  ['home', 'article', 'ranking', 'notfound', 'tip', 'spot', 'legal', 'saved', 'quick', 'account', 'user', 'authors'].forEach(v => { $('#view-' + v).hidden = v !== name; });
   $('#layout').dataset.view = name;
 }
 
@@ -3924,7 +3939,7 @@ function routeCore() {
   }
 
   $$('.main-nav .nav-link').forEach(l => l.classList.toggle('is-active',
-    (l.id === 'nav-ranking' && r.name === 'ranking') || (l.id === 'nav-quick' && r.name === 'quick') || (l.id === 'nav-authors' && (r.name === 'authors' || (r.name === 'home' && r.author))) || (l.id === 'nav-home' && r.name === 'home' && !r.tag && !r.artist && !r.author && !r.category)));
+    (l.id === 'nav-ranking' && r.name === 'ranking') || (l.id === 'nav-spot' && r.name === 'spot') || (l.id === 'nav-quick' && r.name === 'quick') || (l.id === 'nav-authors' && (r.name === 'authors' || (r.name === 'home' && r.author))) || (l.id === 'nav-home' && r.name === 'home' && !r.tag && !r.artist && !r.author && !r.category)));
 
   if (r.name === 'article') {
     showView('article');
@@ -3951,6 +3966,11 @@ function routeCore() {
     document.title = `Zgłoś temat – ${CONFIG.SITE_NAME}`;
     setMeta('Zgłoś temat', 'Masz news, temat albo wskazówkę? Podeślij ją redakcji Śliska News.');
     renderTip();
+  } else if (r.name === 'spot') {
+    showView('spot');
+    document.title = `Wyślij reklamę – ${CONFIG.SITE_NAME}`;
+    setMeta('Wyślij reklamę', 'Reklama w Śliskiej News jest za darmo. Wyślij grafikę i link – zgłoszenie trafia prosto do właściciela serwisu.');
+    renderSpot();
   } else if (r.name === 'legal') {
     showView('legal');
     const legalTitle = { 'o-nas': 'O nas i kontakt', regulamin: 'Regulamin', prywatnosc: 'Polityka prywatności' }[r.doc];
