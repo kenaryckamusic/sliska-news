@@ -4171,6 +4171,12 @@ a.saga-t:hover span { color: var(--accent); }
 .cb-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
 .cb-note { color: var(--muted); font-size: .8rem; line-height: 1.35; }
 
+/* Moderator: plakietka tekstowa zamiast ikony korony (v20261106c) */
+.cmt-badge.is-mod { background: #f59e0b; color: #fff; }
+.acc-chip.is-mod { background: rgba(245, 158, 11, .16); color: #b45309; }
+:root[data-theme="dark"] .acc-chip.is-mod { color: #fbbf24; }
+.rb .cmt-badge + .cmt-badge { margin-left: 0; }
+
 /* ===== Zgłoś temat – zdjęcie główne 16:9 (obowiązkowe) ===== */
 .tip-ratio { margin-left: 6px; padding: 1px 7px; border-radius: 6px; background: var(--soft); color: var(--muted); font-style: normal; font-size: .72rem; font-weight: 800; letter-spacing: .04em; vertical-align: 1px; }
 .tip-photo { position: relative; width: 100%; max-width: 560px; aspect-ratio: 16 / 9; border-radius: 16px; overflow: hidden; }

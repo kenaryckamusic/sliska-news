@@ -29,7 +29,7 @@ const CONFIG = {
   OG_WORKER: true,
 
   // Oceny czytelników i powiadomienia push – działają przez Cloudflare Worker (patrz INSTRUKCJA.md)
-  API_BASE: location.hostname === 'news.sliska.pl' ? 'https://api.sliska.pl' : '/news/api',   // news.sliska.pl (Vercel) mówi z api.sliska.pl
+  API_BASE: (/^(news|dev)\.sliska\.pl$/.test(location.hostname) ? 'https://api.sliska.pl' : '/news/api'),   // news.sliska.pl (Vercel) mówi z api.sliska.pl
   PEEK_CHANCE: 0.5,        // jak często w połowie artykułu pojawia się polecany inny artykuł (0–1)
 
   // Gdy API nie odpowiada: false = pokaż komunikat o błędzie (zalecane na stronie publicznej),
@@ -984,6 +984,11 @@ function currentRoute() {
   if (parts[0] === 'ranking') return { name: 'ranking' };
   if (parts[0] === 'zglos') return { name: 'tip' };
   if (parts[0] === 'spot' || parts[0] === 'reklama') return { name: 'spot' };
+  if (parts[0] === 'gry') return { name: 'games', sub: parts[1] || '' };
+  if (parts[0] === 'sezon') return { name: 'season', m: parts[1] || '' };
+  if (parts[0] === 'podsumowanie') return { name: 'summary', m: parts[1] || '' };
+  if (parts[0] === 'drama' && parts[1]) return { name: 'saga', id: decodeURIComponent(parts[1]) };
+  if (parts[0] === 'dramy') return { name: 'sagas' };
   if (parts[0] === 'prywatnosc' || parts[0] === 'regulamin') return { name: 'legal', doc: parts[0] };
   if (parts[0] === 'o-nas' || parts[0] === 'kontakt') return { name: 'legal', doc: 'o-nas' };
   if (parts[0] === 'zapisane') return { name: 'saved' };
@@ -1505,7 +1510,42 @@ function sagaHtml(a) {
   const next = isNewest ? '' : `<a class="saga-next" href="#/artykul/${encodeURIComponent(newest.id)}"><span class="saga-next-l">Najnowsza odsłona</span><span class="saga-next-t">${Utils.esc(newest.title)}</span>${ICON('arrow', 18)}</a>`;
   return `<section class="saga${isNewest ? '' : ' is-old'}" aria-label="Ta drama ma swoją kontynuację">
     <div class="saga-head">${ICON('flame', 18)}<b>Ta drama ma swoją kontynuację</b><span class="saga-n">${list.length} ${plural(list.length, 'artykuł', 'artykuły', 'artykułów')}</span></div>
-    ${next}<ol class="saga-list">${items}</ol></section>`;
+    ${next}<ol class="saga-list">${items}</ol><a class="saga-all" href="#/drama/${encodeURIComponent(list[0].id)}">Zobacz całą oś dramy ${ICON('arrow', 16)}</a></section>`;
+}
+
+/* ---------- Osie czasu dram (#/drama/<id pierwszego tekstu>, #/dramy) ---------- */
+function sagaGroups() {
+  const by = {};
+  publishedArticles().forEach(a => { const root = a.saga || a.id; (by[root] = by[root] || []).push(a); });
+  return Object.keys(by).map(k => by[k]).filter(l => l.length > 1)
+    .map(l => l.sort((p, r) => Date.parse(p.createdAt) - Date.parse(r.createdAt)))
+    .sort((p, r) => Date.parse(r[r.length - 1].createdAt) - Date.parse(p[p.length - 1].createdAt));
+}
+function renderSagaPage(id) {
+  const el = $('#view-xp');
+  const a = state.articles.find(x => x.id === id);
+  const list = a ? sagaOf(a) : [];
+  if (!list.length) { el.innerHTML = notFoundHtml('Ta oś dramy nie istnieje albo ma tylko jeden artykuł.'); document.title = `Nie znaleziono – ${CONFIG.SITE_NAME}`; return; }
+  const first = list[0], last = list[list.length - 1];
+  const days = Math.max(1, Math.round((Date.parse(last.createdAt) - Date.parse(first.createdAt)) / 864e5));
+  document.title = `Oś dramy: ${first.title} – ${CONFIG.SITE_NAME}`;
+  setMeta('Oś dramy: ' + first.title, `Cała drama krok po kroku: ${list.length} ${plural(list.length, 'artykuł', 'artykuły', 'artykułów')} w Śliska News.`, last.image);
+  const fmt = x => new Date(x.createdAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+  el.innerHTML = `<div class="xp-page"><div class="article-top"><a class="btn btn-back" href="#/dramy">← Wszystkie dramy</a></div>
+    <header class="tl-hero"><span class="gry-eyebrow">${ICON('flame', 15)} Oś czasu dramy</span><h1>${Utils.esc(first.title)}</h1>
+      <p>${list.length} ${plural(list.length, 'odsłona', 'odsłony', 'odsłon')} · trwa ${days} ${plural(days, 'dzień', 'dni', 'dni')} · od ${fmt(first)}</p></header>
+    <ol class="tl">${list.map((x, i) => `<li class="${i === list.length - 1 ? 'is-last' : ''}"><span class="tl-dot" aria-hidden="true">${i + 1}</span>
+      <a class="tl-card" href="#/artykul/${encodeURIComponent(x.id)}">${x.image ? `<img src="${Utils.esc(x.image)}" alt="" loading="lazy">` : ''}
+        <span class="tl-t"><time datetime="${Utils.esc(x.createdAt)}">${fmt(x)}${i === list.length - 1 ? ' · <b>najnowsze</b>' : ''}</time><b>${Utils.esc(x.title)}</b>${x.lead ? `<span>${Utils.esc(Utils.excerpt ? Utils.excerpt(x.lead, 160) : String(x.lead).slice(0, 160))}</span>` : ''}</span></a></li>`).join('')}</ol>
+    <p class="tl-foot">Ciąg dalszy? Zgłoś nam, co się dzieje: <a href="#/zglos">Zgłoś temat →</a></p></div>`;
+}
+function renderSagasPage() {
+  const el = $('#view-xp'), groups = sagaGroups();
+  document.title = `Osie czasu dram – ${CONFIG.SITE_NAME}`;
+  setMeta('Osie czasu dram', 'Wszystkie dramy z kontynuacją w Śliska News – krok po kroku.');
+  el.innerHTML = `<div class="xp-page"><div class="article-top"><a class="btn btn-back" href="#/">← Strona główna</a></div>
+    <header class="tl-hero"><span class="gry-eyebrow">${ICON('flame', 15)} Dramy</span><h1>Osie czasu dram</h1><p>Afery, które miały ciąg dalszy. Wybierz jedną i przeczytaj od początku do końca.</p></header>
+    ${groups.length ? `<div class="tl-grid">${groups.map(l => { const f = l[0], z = l[l.length - 1]; return `<a class="tl-saga" href="#/drama/${encodeURIComponent(f.id)}">${z.image ? `<img src="${Utils.esc(z.image)}" alt="" loading="lazy">` : ''}<span><small>${l.length} ${plural(l.length, 'odsłona', 'odsłony', 'odsłon')} · ostatnio ${new Date(z.createdAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })}</small><b>${Utils.esc(f.title)}</b></span></a>`; }).join('')}</div>` : '<p class="cmt-note">Na razie żadna drama nie ma kontynuacji.</p>'}</div>`;
 }
 
 function tagsBlockHtml(a) {
@@ -3216,7 +3256,8 @@ const CRx = {
       const d = r.ok ? await r.json() : null;
       if (!d || this.article !== id) return;
       this.counts = d.counts || {}; this.mine = d.mine || {};
-      $$('.cmt-rx[data-cid]').forEach(el => { el.outerHTML = cmtRxHtml(Number(el.dataset.cid)); });
+      if (Cmt.article === id && Cmt.ok) drawComments();   // sortowanie „Najlepsze” i Top komentarz zależą od reakcji
+      else $$('.cmt-rx[data-cid]').forEach(el => { el.outerHTML = cmtRxHtml(Number(el.dataset.cid)); });
     } catch { /* bez Workera przyciski zostają z zerami */ }
   },
   async toggle(cid, kind) {
@@ -3240,7 +3281,14 @@ function cmtRxHtml(cid) {
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-crx]'); if (b) CRx.toggle(Number(b.dataset.cid), b.dataset.crx); });
 
-const Cmt = { article: null, list: [], off: false, ok: false, expanded: false, sending: false, msg: '', replyTo: null, focus: 0 };
+const Cmt = { article: null, list: [], off: false, ok: false, expanded: false, sending: false, msg: '', replyTo: null, focus: 0, sort: (() => { try { return localStorage.getItem('sn-cmt-sort') === 'top' ? 'top' : 'new'; } catch { return 'new'; } })() };
+/** Komentarze 2.0: punkty komentarza = reakcje (👍 😂 🔥) + pół punktu za każdą odpowiedź. */
+function cmtScore(c, kids) { const r = CRx.counts[c.id] || {}; return (r.like || 0) + (r.haha || 0) + (r.fire || 0) + ((kids && kids.get(c.id)) || []).length * 0.5; }
+function cmtTopId(tops, kids) {
+  let best = null, bs = 2.5;   // Top komentarz: co najmniej 3 punkty
+  tops.forEach(c => { if (c.status !== 'ok') return; const v = cmtScore(c, kids); if (v > bs) { bs = v; best = c.id; } });
+  return best;
+}
 const CMT_SHOWN = 5;
 const CMT_CUT = 220;               // dłuższe komentarze są skracane do tylu znaków
 const cmtOpen = new Set();
@@ -3324,19 +3372,22 @@ function cmtTree() {
     else tops.push(c);
   });
   kids.forEach(a => a.sort((x, y) => x.at - y.at));
-  return { vis, tops, kids };
+  const topId = cmtTopId(tops, kids);
+  if (Cmt.sort === 'top') tops.sort((x, y) => cmtScore(y, kids) - cmtScore(x, kids) || y.at - x.at);
+  else if (topId) { const i = tops.findIndex(x => x.id === topId); if (i > 0) tops.unshift(tops.splice(i, 1)[0]); }   // Top komentarz zawsze na górze
+  return { vis, tops, kids, topId };
 }
 
 function cmtTextHtml(c) {
   const long = c.text.length > CMT_CUT, open = cmtOpen.has(c.id);
   let t = c.text;
   if (long && !open) { t = t.slice(0, CMT_CUT).replace(/\s+\S*$/, ''); t = t.replace(/[\s.,;:!?-]+$/, '') + '…'; }
-  const body = Utils.esc(t).replace(/\n/g, '<br>');
+  const body = Utils.esc(t).replace(/(^|[\s(])@([\p{L}\p{N}._-]{2,30})/gu, '$1<span class="cmt-at">@$2</span>').replace(/\n/g, '<br>');
   const to = c.to ? `<span class="cmt-mention" title="Odpowiedź na komentarz: ${Utils.esc(c.to)}">@${Utils.esc(c.to)}</span>` : '';   // odpowiedź: nazwa na początku treści
   return `<p>${to ? to + ' ' : ''}${body}</p>${long ? `<button type="button" class="cmt-act cmt-toggle" data-cmt="toggle" data-id="${c.id}">${open ? 'Pokaż mniej' : 'Pokaż więcej'}</button>` : ''}`;
 }
 
-function commentItemHtml(c, kids) {
+function commentItemHtml(c, kids, topId) {
   const own = c.mine ? `<button type="button" class="cmt-act" data-cmt="delete" data-id="${c.id}">${ICON('trash', 15)}<span>Usuń</span></button>` : '';
   const canEdit = c.mine && !Cmt.off && ['ok', 'pending'].includes(c.status) && (isOwnerRole() || Date.now() - c.at < CMT_EDIT_MS);
   const edit = canEdit ? `<button type="button" class="cmt-act" data-cmt="edit" data-id="${c.id}">${ICON('pencil', 15)}<span>Edytuj</span></button>` : '';
@@ -3349,10 +3400,12 @@ function commentItemHtml(c, kids) {
   const reply = canReply ? `<button type="button" class="cmt-act" data-cmt="reply" data-id="${c.id}">${ICON('reply', 15)}<span>Odpowiedz</span></button>` : '';
   const link = c.status === 'ok' ? `<button type="button" class="cmt-act" data-cmt="link" data-id="${c.id}">${ICON('link', 15)}<span>Link</span></button>` : '';
   const sub = kids && kids.length ? `<ul class="cmt-replies">${kids.map(k => commentItemHtml(k)).join('')}</ul>` : '';
-  return `<li class="cmt${c.status === 'pending' ? ' is-pending' : ''}" id="c-${c.id}">
-    <div class="cmt-av avatar">${readerAvatar(c.name, c.av, c.u)}</div>
+  const isTop = topId && c.id === topId;
+  return `<li class="cmt${c.status === 'pending' ? ' is-pending' : ''}${isTop ? ' is-top' : ''}" id="c-${c.id}">
+    ${isTop ? `<div class="cmt-topl">${ICON('star', 14)} Top komentarz</div>` : ''}
+    <div class="cmt-av avatar${c.lv ? ' lv-ring lv-' + c.lv : ''}">${readerAvatar(c.name, c.av, c.u)}</div>
     <div class="cmt-body">
-      <div class="cmt-head">${c.u ? `<a class="cmt-name" href="#/uzytkownik/${Utils.esc(c.u)}"><b>${Utils.esc(c.name)}</b></a>` : `<b>${Utils.esc(c.name)}</b>`}${roleBadge(c)}<time>${ago(c.at)}</time>${c.edited ? '<span class="cmt-edited">· edytowano</span>' : ''}</div>
+      <div class="cmt-head">${c.u ? `<a class="cmt-name" href="#/uzytkownik/${Utils.esc(c.u)}"><b>${Utils.esc(c.name)}</b></a>` : `<b>${Utils.esc(c.name)}</b>`}${roleBadge(c)}${c.lv && window.SnXP ? SnXP.badge(c.lv) : ''}<time>${ago(c.at)}</time>${c.edited ? '<span class="cmt-edited">· edytowano</span>' : ''}</div>
       ${Cmt.editing === c.id ? `<div class="cmt-edit"><textarea id="cmt-edit-text" rows="3" maxlength="${isOwnerRole() ? 20000 : 600}">${Utils.esc(c.text)}</textarea><div class="cmt-row"><button type="button" class="btn btn-primary btn-sm" data-cmt="edit-save" data-id="${c.id}">Zapisz</button><button type="button" class="btn btn-sm" data-cmt="edit-cancel" data-id="${c.id}">Anuluj</button><small>Poprawki możliwe do 5 minut od publikacji.</small></div></div>` : cmtTextHtml(c)}
       ${c.status === 'pending' ? '<small class="cmt-wait">Czeka na zatwierdzenie przez redakcję</small>' : ''}
       <div class="cmt-actions">${c.status === 'ok' ? cmtRxHtml(c.id) : ''}${reply}${link}${edit}${own}${rep}${adm}</div>
@@ -3367,7 +3420,7 @@ function drawCommentsInner() {
   if (!box || !Cmt.ok || box.dataset.article !== Cmt.article) return;
   box.hidden = false;
   placeComments();
-  const { vis: visible, tops, kids } = cmtTree();
+  const { vis: visible, tops, kids, topId } = cmtTree();
   const shown = Cmt.expanded ? tops : tops.slice(0, CMT_SHOWN);
   let form = '';
   if (Cmt.off) form = '<p class="cmt-note">Komentarze do tego artykułu są wyłączone.</p>';
@@ -3378,10 +3431,12 @@ function drawCommentsInner() {
       <div class="cmt-row"><small><span id="cmt-count">0</span>${isOwnerRole() ? '' : '/600'}</small><button type="submit" class="btn btn-primary btn-sm" id="cmt-send">Opublikuj</button></div>${Cmt.slow && !canMod() ? `<small class="cmt-slow">Tryb wolniejszej dyskusji: odstęp ${Cmt.slow >= 60 ? Cmt.slow / 60 + ' min' : Cmt.slow + ' s'} między komentarzami.</small>` : ''}${!Readers.loggedIn() ? '<small class="cmt-guest">Piszesz jako gość. <button type="button" class="cmt-act" data-cmt="login">Zaloguj się</button>, żeby mieć własną nazwę oraz edytować i usuwać komentarze.</small>' : ''}</form>`;
   const keep = $('#cmt-text') ? $('#cmt-text').value : '';
   const closeBtn = canMod() && (Cmt.closed || !Cmt.off) ? `<button type="button" class="cmt-act cmt-close" data-cmt="close-toggle">${ICON(Cmt.closed ? 'unlock' : 'lock', 15)}${Cmt.closed ? 'Otwórz komentarze' : 'Zamknij komentarze'}</button>` : '';
+  const sortBar = tops.length > 1 ? `<div class="cmt-sort" role="group" aria-label="Kolejność komentarzy"><button type="button" data-cmt="sort-new" class="${Cmt.sort === 'new' ? 'is-on' : ''}" aria-pressed="${Cmt.sort === 'new'}">Najnowsze</button><button type="button" data-cmt="sort-top" class="${Cmt.sort === 'top' ? 'is-on' : ''}" aria-pressed="${Cmt.sort === 'top'}">Najlepsze</button></div>` : '';
   box.innerHTML = `<h2 class="cmt-title">Komentarze <span>${visible.length}</span>${closeBtn}</h2>
     ${form}
     ${Cmt.msg ? `<p class="cmt-msg">${Utils.esc(Cmt.msg)}</p>` : ''}
-    ${visible.length ? `<ul class="cmt-list">${shown.map(c => commentItemHtml(c, kids.get(c.id))).join('')}</ul>` : (Cmt.off ? '' : '<p class="cmt-empty">Bądź pierwszy – napisz, co myślisz.</p>')}
+    ${sortBar}
+    ${visible.length ? `<ul class="cmt-list">${shown.map(c => commentItemHtml(c, kids.get(c.id), topId)).join('')}</ul>` : (Cmt.off ? '' : '<p class="cmt-empty">Bądź pierwszy – napisz, co myślisz.</p>')}
     ${!Cmt.expanded && tops.length > CMT_SHOWN ? `<button type="button" class="btn btn-sm cmt-more" data-cmt="more">Pokaż resztę komentarzy (${tops.length - CMT_SHOWN})</button>` : ''}`;
   const t = $('#cmt-text'); if (t && keep) { t.value = keep; cmtCount(); }
 }
@@ -3395,12 +3450,32 @@ async function sendComment(e) {
   try {
     const d = await actorApi('/comments', { method: 'POST', body: JSON.stringify({ article: Cmt.article, text, replyTo: Cmt.replyTo ? Cmt.replyTo.id : undefined }) });
     Cmt.list.unshift(d.comment); Cmt.replyTo = null;
+    if (d.xp && d.xp.got && window.SnXP) SnXP.gained(d.xp);
     Cmt.msg = d.held ? 'Komentarz zawiera link lub niedozwolone słowa, więc czeka na zatwierdzenie redakcji.' : '';
     if (d.censored && !d.held) Cmt.msg = 'Opublikowano. Niektóre słowa zostały automatycznie ocenzurowane.';
     else if (!d.held && Push.supported() && Notification.permission !== 'granted') Cmt.msg = 'Opublikowano. Włącz powiadomienia (dzwonek na górze), a damy Ci znać, gdy ktoś odpowie na Twój komentarz.';
     $('#cmt-text').value = '';
   } catch (err) { Cmt.msg = err && err.error === 'slow' && err.data && err.data.wait ? `Poczekaj jeszcze ${err.data.wait} s przed kolejnym komentarzem (tryb wolniejszej dyskusji).` : readerErr(err); }
   finally { Cmt.sending = false; drawComments(); }
+}
+
+/** @wzmianki: podpowiedź nicków osób z tej dyskusji po wpisaniu „@”. */
+function mentionSuggest(t) {
+  let box = $('#cmt-ac'); const pos = t.selectionStart || 0, before = t.value.slice(0, pos);
+  const m = before.match(/(^|\s)@([\p{L}\p{N}._-]{0,30})$/u);
+  const me = Readers.me && Readers.me.name;
+  const names = m ? [...new Set(Cmt.list.filter(c => c.u && c.status === 'ok').map(c => c.name))].filter(n => n !== me && n.toLowerCase().startsWith(m[2].toLowerCase()) && /^[\p{L}\p{N}._-]+$/u.test(n)).slice(0, 6) : [];
+  if (!names.length) { if (box) box.remove(); return; }
+  if (!box) { box = document.createElement('div'); box.id = 'cmt-ac'; box.className = 'cmt-ac'; box.setAttribute('role', 'listbox'); }
+  if (box.previousElementSibling !== t) t.insertAdjacentElement('afterend', box);
+  box.innerHTML = names.map(n => `<button type="button" role="option" data-mention="${Utils.esc(n)}">@${Utils.esc(n)}</button>`).join('');
+  box.onmousedown = ev => ev.preventDefault();
+  box.onclick = ev => {
+    const b = ev.target.closest('[data-mention]'); if (!b) return;
+    const start = pos - m[2].length - 1, ins = '@' + b.dataset.mention + ' ';
+    t.value = t.value.slice(0, start) + ins + t.value.slice(pos); t.focus(); t.setSelectionRange(start + ins.length, start + ins.length);
+    box.remove(); if (t.id === 'cmt-text') cmtCount();
+  };
 }
 
 function cmtCount() {
@@ -3415,6 +3490,7 @@ function cmtCount() {
 async function commentAction(act, id, btn) {
   try {
     if (act === 'more') { Cmt.expanded = true; drawComments(); return; }
+    if (act === 'sort-new' || act === 'sort-top') { Cmt.sort = act === 'sort-top' ? 'top' : 'new'; try { localStorage.setItem('sn-cmt-sort', Cmt.sort); } catch { /* - */ } drawComments(); return; }
     if (act === 'toggle') { cmtOpen.has(id) ? cmtOpen.delete(id) : cmtOpen.add(id); drawComments(); return; }
     if (act === 'login') { openReaderModal('login'); return; }
     if (act === 'reply') {
@@ -3615,14 +3691,29 @@ async function renderUserProfile(pub) {
     const t = c.text.length > 240 ? c.text.slice(0, 240).replace(/\s+\S*$/, '') + '…' : c.text;
     return `<li class="up-c"><a class="up-art" href="#/artykul/${encodeURIComponent(c.article)}?k=${c.id}">${Utils.esc(a ? a.title : 'Artykuł')}</a><p>${Utils.esc(t).replace(/\n/g, '<br>')}</p><time>${ago(c.at)}</time></li>`;
   }).join('');
+  // profil z życiem: ulubiona kategoria i ostatnia aktywność z komentarzy, poziom z XP
+  const catN = {};
+  (d.comments || []).forEach(c => { const a = state.articles.find(x => x.id === c.article); if (a) (a.categories || [a.category]).filter(Boolean).forEach(k => { catN[k] = (catN[k] || 0) + 1; }); });
+  const favCat = Object.keys(catN).sort((p, q) => catN[q] - catN[p])[0] || '';
+  const lastAt = (d.comments || []).reduce((m, c) => Math.max(m, c.at || 0), 0);
+  const lv = Number(d.lv) || 0;
+  const facts = [
+    lv && window.SnXP ? ['Poziom', `${lv} · ${SnXP.LEVELS[lv - 1][1]}`] : null,
+    d.month ? ['W tym sezonie', `${d.month} XP`] : null,
+    favCat ? ['Ulubiona kategoria', `<a href="#/kategoria/${encodeURIComponent(favCat)}">${Utils.esc(favCat)}</a>`] : null,
+    lastAt ? ['Ostatnio aktywny(a)', ago(lastAt)] : null
+  ].filter(Boolean);
   el.innerHTML = `<div class="article-top">${backBtn('#/', '← Powrót do strony głównej', 'btn')}</div>
     <section class="panel up-card">
-      <div class="avatar up-av">${readerAvatar(d.name, d.av, d.pub)}</div>
+      <div class="avatar up-av${lv ? ' lv-ring lv-' + lv : ''}">${readerAvatar(d.name, d.av, d.pub)}</div>
       <div class="up-main"><h1 class="up-name">${Utils.esc(d.name)}</h1>
         <div class="up-meta">${roleBadge({ staff: d.staff, role: d.role, crown: d.crown }) || '<span class="muted">Czytelnik</span>'}${since ? `<span class="muted">Dołączył(a) ${since}</span>` : ''}<span class="muted">Komentarzy: ${d.count || 0}</span></div>
         ${d.bio ? `<p class="up-bio">${Utils.esc(d.bio)}</p>` : ''}
+        ${facts.length ? `<dl class="up-facts">${facts.map(f => `<div><dt>${f[0]}</dt><dd>${f[1]}</dd></div>`).join('')}</dl>` : ''}
         ${d.staff || ['editor', 'owner', 'chief'].includes(d.role) ? `<a class="up-more" href="#/redaktor/${encodeURIComponent(d.name)}">Zobacz artykuły autora →</a>` : ''}</div>
     </section>
+    ${lv && window.SnXP && !d.banned ? SnXP.card({ lv, total: Number(d.xp) || 0 }, false) : ''}
+    ${!d.banned && d.best && Object.keys(d.best).length && window.SliskieGry ? `<section class="panel up-recs"><h2>Rekordy w Śliskich Grach</h2><div>${SliskieGry.games.filter(g => d.best[g.id]).map(g => `<a href="#/gry/${g.id}" style="--g1:${g.c[0]};--g2:${g.c[1]}"><small>${g.name}</small><b>${SliskieGry.fmt(g.id, d.best[g.id])}</b></a>`).join('')}</div></section>` : ''}
     ${d.banned ? '<p class="cmt-note">To konto zostało zablokowane.</p>' : `<h2 class="up-h">Komentarze</h2>${items ? `<ul class="up-list">${items}</ul>` : '<p class="muted">Ten użytkownik nie ma jeszcze komentarzy.</p>'}`}`;
 }
 
@@ -3650,11 +3741,12 @@ function renderAccount() {
       <div class="acc-hero-body">
         <div class="avatar avatar-lg acc-hero-av">${readerAvatar(me.name, me.avatarAt, me.pub)}</div>
         <div class="acc-hero-main"><h2 class="acc-hero-name">${Utils.esc(me.name || 'Twoje konto')}</h2>
-          <div class="acc-chips"><span class="acc-chip">${Utils.esc(ROLE_LABEL[me.role] || 'Czytelnik')}</span>${me.crown ? `<span class="acc-chip is-crown">${crownHtml()} Moderator</span>` : ''}${vChip}</div></div>
+          <div class="acc-chips"><span class="acc-chip">${Utils.esc(ROLE_LABEL[me.role] || 'Czytelnik')}</span>${me.crown ? `<span class="acc-chip is-mod">Moderator</span>` : ''}${vChip}</div></div>
         <div class="acc-hero-actions">${pubLink}</div>
       </div>
     </section>
     ${tabsHtml}
+    ${tab ? '' : '<div id="acc-xp"></div>'}
     ${tab ? '<div id="acc-mod" class="panel-list"></div>' : `<div class="acc-grid">
       <div class="acc-col">
       <section class="panel st-card">
@@ -3685,6 +3777,7 @@ function renderAccount() {
       </div>
     </div>`}`;
   if (tab === 'komentarze') renderModComments($('#acc-mod'), false);
+  else if (window.SnXP) SnXP.loadMe().then(d => { const b = $('#acc-xp'); if (b && d) b.innerHTML = SnXP.card(d, true); });
 }
 
 /** Przełącznik „bez reklam na tym urządzeniu” – jedyna funkcja redakcji dostępna także na stronie publicznej (dla kont z rangą). */
@@ -3709,6 +3802,7 @@ const PANEL_URL = /^dev\./.test(location.hostname) ? '/' : 'https://dev.sliska.p
 function renderReaderCard() {
   const rd = Readers.loggedIn();
   try { if (window.SpotForm) SpotForm.refreshUser(); } catch { /* ignoruj */ }
+  try { if (window.SnXP) SnXP.onReader(); } catch { /* ignoruj */ }
   document.body.classList.toggle('is-reader', rd);
   document.body.classList.toggle('is-reader-only', rd);
   const me = Readers.me || {};
@@ -3786,7 +3880,7 @@ function bindReaderEvents() {
     } else if (e.target.id === 'acc-avatar-remove') { try { await Readers.saveAvatar(null); toast('Zdjęcie usunięte.'); } catch (ex) { toast(readerErr(ex), 'error'); } }
   });
   document.addEventListener('submit', e => { if (e.target.id === 'cmt-form') sendComment(e); });
-  document.addEventListener('input', e => { if (e.target.id === 'cmt-text') cmtCount(); if (e.target.id === 'acc-bio') { const n = $('#acc-bio-n'); if (n) n.textContent = Array.from(e.target.value).length + '/150'; } });
+  document.addEventListener('input', e => { if (e.target.id === 'cmt-text' || e.target.id === 'cmt-bottom-text') mentionSuggest(e.target); if (e.target.id === 'cmt-text') cmtCount(); if (e.target.id === 'acc-bio') { const n = $('#acc-bio-n'); if (n) n.textContent = Array.from(e.target.value).length + '/150'; } });
   document.addEventListener('change', async e => {
     if (e.target.id !== 'acc-avatar-file' || !e.target.files[0]) return;
     try { await Readers.saveAvatar(await shrinkToJpeg(e.target.files[0])); toast('Zdjęcie zapisane.'); } catch (ex) { toast(readerErr(ex), 'error'); }
@@ -3797,7 +3891,7 @@ function bindReaderEvents() {
 const Mod = { all: false };
 const ROLE_LABEL = { owner: 'Właściciel Portalu', chief: 'Redaktor naczelny', editor: 'Redaktor', mod: 'Moderator' };
 const CROWN_SVG = '<svg class="ic" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">' + ICONS.crown + '</svg>';
-const crownHtml = () => `<span class="crown" title="Moderator" role="img" aria-label="Moderator">${CROWN_SVG}</span>`;
+const crownHtml = () => '<span class="cmt-badge is-mod">Moderator</span>';      // bez ikony korony – sama plakietka (v20261106c)
 const MOD_ST = { pending: 'Czeka', reported: 'Zgłoszony', hidden: 'Ukryty', ok: 'Widoczny' };
 const myRole = () => (Readers.me && Readers.me.role) || '';
 const CMT_EDIT_MS = 5 * 60 * 1000;
@@ -3880,7 +3974,8 @@ function modItemHtml(c) {
 
 /* ---------- Routing ---------- */
 function showView(name) {
-  ['home', 'article', 'ranking', 'notfound', 'tip', 'spot', 'legal', 'saved', 'quick', 'account', 'user', 'authors'].forEach(v => { $('#view-' + v).hidden = v !== name; });
+  ['home', 'article', 'ranking', 'notfound', 'tip', 'spot', 'games', 'xp', 'legal', 'saved', 'quick', 'account', 'user', 'authors'].forEach(v => { $('#view-' + v).hidden = v !== name; });
+  if (name !== 'games' && window.SliskieGry) SliskieGry.stop();
   $('#layout').dataset.view = name;
 }
 
@@ -3939,7 +4034,7 @@ function routeCore() {
   }
 
   $$('.main-nav .nav-link').forEach(l => l.classList.toggle('is-active',
-    (l.id === 'nav-ranking' && r.name === 'ranking') || (l.id === 'nav-spot' && r.name === 'spot') || (l.id === 'nav-quick' && r.name === 'quick') || (l.id === 'nav-authors' && (r.name === 'authors' || (r.name === 'home' && r.author))) || (l.id === 'nav-home' && r.name === 'home' && !r.tag && !r.artist && !r.author && !r.category)));
+    (l.id === 'nav-ranking' && r.name === 'ranking') || (l.id === 'nav-spot' && r.name === 'spot') || (l.id === 'nav-games' && r.name === 'games') || (l.id === 'nav-quick' && r.name === 'quick') || (l.id === 'nav-authors' && (r.name === 'authors' || (r.name === 'home' && r.author))) || (l.id === 'nav-home' && r.name === 'home' && !r.tag && !r.artist && !r.author && !r.category)));
 
   if (r.name === 'article') {
     showView('article');
@@ -3966,6 +4061,23 @@ function routeCore() {
     document.title = `Zgłoś temat – ${CONFIG.SITE_NAME}`;
     setMeta('Zgłoś temat', 'Masz news, temat albo wskazówkę? Podeślij ją redakcji Śliska News.');
     renderTip();
+  } else if (r.name === 'games') {
+    showView('games');
+    document.title = `Śliskie Gry – ${CONFIG.SITE_NAME}`;
+    setMeta('Śliskie Gry', 'Ślizgle, Łap Krople, Knaga Flappy, Śliski Wąż, Układanka i Drama Simulator – gry Śliskiej News.');
+    if (window.SliskieGry) SliskieGry.mount($('#view-games'), r.sub, { articles: state.articles });
+    else $('#view-games').innerHTML = notFoundHtml('Nie udało się wczytać gier. Odśwież stronę.');
+  } else if (r.name === 'season' || r.name === 'summary') {
+    showView('xp');
+    const t = r.name === 'season' ? 'Ranking sezonu' : 'Śliskie Podsumowanie miesiąca';
+    document.title = `${t} – ${CONFIG.SITE_NAME}`;
+    setMeta(t, r.name === 'season' ? 'Ranking Ślizgaczy: punkty XP za czytanie, komentarze i gry. Nowy sezon co miesiąc.' : 'Twój miesiąc na Śliskiej News w liczbach.');
+    if (window.SnXP) SnXP[r.name === 'season' ? 'ranking' : 'summary']($('#view-xp'), r.m);
+    window.scrollTo(0, 0);
+  } else if (r.name === 'saga' || r.name === 'sagas') {
+    showView('xp');
+    if (r.name === 'saga') renderSagaPage(r.id); else renderSagasPage();
+    window.scrollTo(0, 0);
   } else if (r.name === 'spot') {
     showView('spot');
     document.title = `Wyślij reklamę – ${CONFIG.SITE_NAME}`;
@@ -4429,12 +4541,12 @@ function initRail() {
   t.addEventListener('click', () => { const c = document.body.classList.toggle('rail-c'); try { localStorage.setItem('sliska_rail', c ? 'c' : 'e'); } catch { /* ignoruj */ } label(); });
   top.appendChild(t); label();
   /* kategorie i „Masz temat?” przenosimy na pasek (tylko szeroki ekran) */
-  const nav = $('.main-nav'), cats = $('#category-nav') && $('#category-nav').closest('.side-card'), tip = $('#side-left .tip-card'), aside = $('#side-left');
+  const nav = $('.main-nav'), cats = $('#category-nav') && $('#category-nav').closest('.side-card'), tip = $('#side-left .tip-card'), zone = $('#side-left .zone-card'), aside = $('#side-left');
   if (nav && cats && tip && aside) {
     const sc = document.createElement('div'); sc.className = 'rail-scroll';
     nav.parentNode.insertBefore(sc, nav); sc.appendChild(nav);
     const mq = matchMedia('(min-width:1100px)');
-    const place = () => { if (mq.matches) { sc.append(cats, tip); } else { aside.append(cats, tip); } };
+    const place = () => { const z = zone ? [zone] : []; if (mq.matches) { sc.append(...z, cats, tip); } else { aside.append(...z, cats, tip); } };
     place(); (mq.addEventListener ? mq.addEventListener('change', place) : mq.addListener(place));
   }
   const pb = document.createElement('button'); pb.type = 'button'; pb.id = 'rail-profile'; pb.className = 'rail-profile avatar'; pb.title = 'Profil'; pb.setAttribute('aria-label', 'Profil i skróty');

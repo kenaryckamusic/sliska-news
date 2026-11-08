@@ -28,6 +28,10 @@
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>',
     team: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20c0-2.8-1.6-4.9-4-5.7"/>',
     spot: '<path d="M3 10v4h3l6 4V6L6 10z"/><path d="M16 9a4 4 0 0 1 0 6"/>',
+    spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+    cup: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5v1a3 3 0 0 0 3 3M16 6h3v1a3 3 0 0 1-3 3M12 13v4M8.5 20h7"/>',
+    fire: '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.3 1.2-3.7 2.3-4.7.3 1.6 1 2.6 2 3.1C11 8.6 11.3 5.6 12 3z"/>',
+    game: '<rect x="2.5" y="7" width="19" height="11" rx="5"/><path d="M7.5 10.5v4M5.5 12.5h4"/><circle cx="15.5" cy="11.5" r="1"/><circle cx="17.5" cy="13.5" r="1"/>',
     moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
     pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
     flash: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
@@ -47,7 +51,7 @@
   function build() {
     if (built) return; built = true;
     bar = document.createElement('nav'); bar.className = 'm-tabbar'; bar.setAttribute('aria-label', 'Nawigacja aplikacji');
-    bar.innerHTML = tab('#/', 'home', 'Home', 'home') + tab('#/szybkie', 'bolt', 'Nowinki', 'quick') + tab('#/ranking', 'chart', 'Ranking', 'ranking') + tab('#/zapisane', 'mark', 'Zapisane', 'saved') +
+    bar.innerHTML = tab('#/', 'home', 'Home', 'home') + tab('#/szybkie', 'bolt', 'Nowinki', 'quick') + tab('#/ranking', 'chart', 'Ranking', 'ranking') + tab('#/gry', 'game', 'Gry', 'games') +
       '<button type="button" class="m-tab" data-k="more">' + svg('more') + '<span>Więcej</span></button>';
     var ind = document.createElement('i'); ind.className = 'm-ind'; bar.insertBefore(ind, bar.firstChild);
     bg = document.createElement('div'); bg.className = 'm-sheet-bg';
@@ -136,7 +140,7 @@
     if (s) setTimeout(function () { var i = $('#search-input'); i && i.focus(); }, 60);
   }
   function mark() {
-    var h = location.hash || '#/', k = /^#\/szybkie/.test(h) ? 'quick' : /^#\/ranking/.test(h) ? 'ranking' : /^#\/zapisane/.test(h) ? 'saved' : (/^#\/(konto|redakcja|panel|ustawienia|zglos|spot|plus)/.test(h) ? 'more' : (h === '#/' || /^#\/(kategoria|artykul)?/.test(h) && !/^#\/[a-z]/.test(h.replace(/^#\/(kategoria|artykul).*/, '')) ? 'home' : 'home'));
+    var h = location.hash || '#/', k = /^#\/szybkie/.test(h) ? 'quick' : /^#\/ranking/.test(h) ? 'ranking' : /^#\/gry/.test(h) ? 'games' : (/^#\/(konto|redakcja|panel|ustawienia|zglos|spot|plus|sezon|dramy|drama|podsumowanie|zapisane)/.test(h) ? 'more' : (h === '#/' || /^#\/(kategoria|artykul)?/.test(h) && !/^#\/[a-z]/.test(h.replace(/^#\/(kategoria|artykul).*/, '')) ? 'home' : 'home'));
     if (/^#\/(kategoria|artykul|tag|wykonawca|autor)/.test(h) || h === '#/' || h === '#' || h === '') k = 'home';
     bar.querySelectorAll('.m-tab').forEach(function (t) { t.classList.toggle('is-on', t.dataset.k === k); }); place();
   }
@@ -148,7 +152,13 @@
   function open() {
     var logged = document.body.classList.contains('is-reader');
     var h = '<div class="m-grip"></div>';
+    h += '<h3>Śliska strefa</h3><div class="m-grid">' +
+      link('#/gry', 'game', 'Śliskie Gry') +
+      link('#/sezon', 'cup', 'Ranking sezonu') +
+      link('#/dramy', 'fire', 'Osie dram') +
+      link('#/podsumowanie', 'spark', 'Twój miesiąc') + '</div>';
     h += '<h3>Aplikacja</h3><div class="m-grid">' +
+      link('#/zapisane', 'mark', 'Zapisane') +
       link('#/redakcja', 'team', 'Redakcja') +
       link('#/spot', 'spot', 'Wyślij reklamę') +
       item('user', logged ? 'Moje konto' : 'Zaloguj się', 'data-m="account"') +
