@@ -210,7 +210,7 @@
         return;
       }
       if (st.end) {
-        var txt = 'Ślizgle #' + (dayIndex() + 1) + ' ' + (st.win ? st.rows.length : 'X') + '/6' + (st.hint ? ' 💡' : '') + '\n' + st.rows.map(function (w) { return score(w).map(function (s) { return s === 'ok' ? '🟩' : s === 'in' ? '🟨' : '⬛'; }).join(''); }).join('\n') + '\n' + LINK;
+        var txt = 'Ślizgle #' + (dayIndex() + 1) + ' ' + (st.win ? st.rows.length : 'X') + '/6' + (st.hint ? ' 💡' : '') + '\n' + st.rows.map(function (w) { return score(w).map(function (s) { return s === 'ok' ? '🟩' : s === 'in' ? '🟨' : '⬛'; }).join(''); }).join('\n') + '\n' + LINK + '/slizgle';
         $('#sz-msg').innerHTML = '<div class="sz-end' + (st.win ? ' is-win' : '') + '">' + K(st.win ? 'imprezowa' : 'ratownik', 'gk') + '<div><b>' + (st.win ? ['Geniusz!', 'Mokro!', 'Świetnie!', 'Nieźle!', 'Uff!', 'Na styk!'][st.rows.length - 1] : 'Tym razem sucho') + '</b><span>' + (st.win ? 'Zgadłeś w ' + st.rows.length + '/6.' : 'Słowo dnia: ' + answer + '.') + ' Nowe słowo o północy.</span></div><button type="button" class="btn btn-primary btn-sm" id="sz-share">' + ICO.share + ' Udostępnij</button></div>';
         $('#sz-share').onclick = function () { share(txt); };
       }
@@ -285,7 +285,7 @@
       var o = $('#gry-over'); o.hidden = false;
       o.innerHTML = '<div class="gm">' + html + '<div class="gm-acts"><button type="button" class="btn btn-primary" id="gry-go">' + btn + '</button>' + (withShare ? '<button type="button" class="btn" id="gry-share">' + ICO.share + ' Udostępnij</button>' : '') + '</div></div>';
       $('#gry-go').onclick = paused ? resume : start; $('#gry-go').focus({ preventScroll: true });
-      var sh = $('#gry-share'); if (sh) sh.onclick = function () { share(g.name + ' na Śliskiej: ' + api.score + ' ' + (g.unit || '') + ' 💦 Pobijesz?\n' + LINK); };
+      var sh = $('#gry-share'); if (sh) sh.onclick = function () { share(g.name + ' na Śliskiej: ' + api.score + ' ' + (g.unit || '') + ' 💦 Pobijesz?\n' + LINK + '/' + g.id); };
     }
     function start() { $('#gry-over').hidden = true; over = false; paused = false; fx = []; api.t = 0; api.setScore(0); opts.reset(api); running = true; last = performance.now(); raf = requestAnimationFrame(loop); try { cv.focus({ preventScroll: true }); } catch (e) { /* - */ } }
     function pause() { if (!running || over) return; running = false; paused = true; cancelAnimationFrame(raf); menu('<span class="gm-eye">Pauza</span><div class="gm-k">' + K('szlafrok', 'gk') + '</div><p class="gm-end">Knaga czeka. Wynik: <b>' + api.score + '</b></p>', 'Wznów'); }
@@ -663,7 +663,7 @@
   /* ============== DRAMA SIMULATOR (news/drama.js) ============== */
   function drama(el) {
     if (!window.DramaSim) { shell(el, G('drama'), '<p class="gp-empty">Nie udało się wczytać gry. Odśwież stronę.</p>'); return; }
-    DramaSim.mount(el, { G: G, K: K, esc: esc, shell: shell, submit: submit, xp: xp, played: played, share: share, load: load, save: save, toast: toast, LINK: LINK });
+    DramaSim.mount(el, { G: G, K: K, esc: esc, shell: shell, submit: submit, xp: xp, played: played, share: share, load: load, save: save, toast: toast, LINK: LINK + '/drama' });
   }
 
   /* ============== KRZYŻÓWKA TYGODNIA (krzyżówka z hasłem) ============== */
@@ -726,7 +726,7 @@
     function win() {
       grid.classList.add('is-done'); [].forEach.call(grid.querySelectorAll('.kz-c'), function (i) { i.readOnly = true; }); $('#kz-pass').classList.add('is-done'); pass();
       $('#kz-msg').innerHTML = '<div class="sz-end is-win">' + K('imprezowa', 'gk') + '<div><b>Rozwiązane!</b><span>Hasło tygodnia: ' + set.h + '. Mokra robota.</span></div><button type="button" class="btn btn-primary btn-sm" id="kz-share">' + ICO.share + ' Udostępnij</button></div>';
-      $('#kz-share').onclick = function () { share('Rozwiązałem Krzyżówkę Tygodnia na Śliskiej 🧩 Dasz radę?\n' + LINK); };
+      $('#kz-share').onclick = function () { share('Rozwiązałem Krzyżówkę Tygodnia na Śliskiej 🧩 Dasz radę?\n' + LINK + '/krzyzowka'); };
       if (!st.done) { st.done = 1; lsSet(key, st); lsSet('sn-krzyz-done-' + weekIndex(), 1); var d = load(); d.solved = (d.solved || 0) + 1; save(d); submit('krzyzowka', d.solved); xp('krzyzowka'); played('krzyzowka'); toast('Krzyżówka rozwiązana! 🧩'); }
     }
     $('#kz-check').onclick = function () {

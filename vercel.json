@@ -2,6 +2,8 @@
   "cleanUrls": false,
   "trailingSlash": false,
   "rewrites": [
+    {"source": "/gry", "destination": "/gry.html"},
+    {"source": "/gry/:id", "destination": "/gry/:id.html"},
     {
       "source": "/spot",
       "destination": "/spot.html"
