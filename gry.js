@@ -12,7 +12,7 @@
   function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* ignoruj */ } }
   function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignoruj */ } }
-  function xp(kind) { if (window.SnXP) SnXP.earn(kind); }
+  function xp(kind) { /* XP za gry i rekordy przyznaje serwer w jednym zgłoszeniu ukończenia (finish) */ }
   var logged = function () { try { return Readers.loggedIn() && (!Readers.hasName || Readers.hasName()); } catch (e) { return false; } };
   var uid = function () { try { return Readers.user && Readers.user.uid; } catch (e) { return ''; } };
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -78,14 +78,34 @@
     if (g === 'krzyzowka') return v + '×';
     return v + ' ' + (G(g).unit || '');
   }
-  function postRec(g, v) { if (!window.actorApi) return; actorApi('/gry/record', { method: 'POST', body: JSON.stringify({ game: g, score: v }) }).catch(function () {}); }
+  /* ---- ukończenie gry: JEDNO zgłoszenie do serwera (wynik + rekord + XP). Serwer sprawdza bilet startowy, czas i wiarygodność wyniku. ---- */
+  var TK = {}, lastFin = {}, GXP = { slizgle: 'slizgle', drama: 'drama', naczelny: 'drama', krzyzowka: 'krzyzowka' };
+  function mint(g) {
+    if (!logged() || !window.actorApi || !G(g)) return Promise.resolve(null);
+    return (TK[g] = actorApi('/gry/start', { method: 'POST', body: JSON.stringify({ game: g }) }).then(function (d) { return d && d.tk || null; }).catch(function () { return null; }));
+  }
+  function finish(g, score) {
+    if (!logged() || !window.actorApi) return;
+    lastFin[g] = Date.now();
+    var p = TK[g] || mint(g); delete TK[g];
+    p.then(function (tk) {
+      if (!tk) return legacy(g, score);                       // stary Worker bez /gry/finish – tymczasowy powrót do dawnych ścieżek
+      return actorApi('/gry/finish', { method: 'POST', body: JSON.stringify({ game: g, score: score, tk: tk }) }).then(function (d) {
+        if (d && d.best != null) { if (acc) acc.best[g] = d.best; var b = $('#gry-best'); if (b) b.textContent = fmt(g, best(g)); }
+        if (d && d.xp && d.xp.got && window.SnXP) SnXP.gained(d.xp);
+      });
+    }).catch(function () {}).then(function () { mint(g); });
+  }
+  function legacy(g, score) {
+    actorApi('/gry/record', { method: 'POST', body: JSON.stringify({ game: g, score: score }) }).catch(function () {});
+    if (window.SnXP) { SnXP.earn(GXP[g] || 'game'); }
+  }
   function accLoad() {
     if (!logged() || !window.actorApi) { acc = null; return Promise.resolve(null); }
     var u = uid(); if (acc && acc.uid === u) return Promise.resolve(acc);
     return actorApi('/gry/me').then(function (d) {
       acc = { uid: u, best: (d && d.best) || {} };
-      var k = 'sn-gry-sync-' + u;
-      if (!lsGet(k)) { lsSet(k, 1); var lb = load().best || {}; Object.keys(lb).forEach(function (g) { if (G(g) && better(g, lb[g], acc.best[g])) { acc.best[g] = lb[g]; postRec(g, lb[g]); } }); }
+      /* lokalne rekordy nie są już wysyłane na konto: rekord powstaje tylko z wyniku zatwierdzonego przez serwer */
       return acc;
     }).catch(function () { return null; });
   }
@@ -95,12 +115,12 @@
     var nb = better(g, score, best(g));
     if (better(g, score, d.best[g])) d.best[g] = score;
     save(d);
-    if (nb && logged()) { if (acc) acc.best[g] = score; postRec(g, score); }
+    if (logged()) finish(g, score);
     var b = $('#gry-best'); if (b) b.textContent = fmt(g, best(g));
     return nb;
   }
-  function played(g) { try { fetch(API + '/gry/play', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ game: g }), keepalive: true }).catch(function () {}); } catch (e) { /* ignoruj */ } }
-  window.addEventListener('sn:reader', function () { acc = null; accLoad().then(function () { var b = $('#gry-best'), cur = $('.gp[data-game]'); if (b && cur) b.textContent = fmt(cur.dataset.game, best(cur.dataset.game)); }); });
+  function played(g) { if (Date.now() - (lastFin[g] || 0) < 4000) return; try { fetch(API + '/gry/play', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ game: g }), keepalive: true }).catch(function () {}); } catch (e) { /* ignoruj */ } }
+  window.addEventListener('sn:reader', function () { acc = null; var cg = $('.gp[data-game]'); if (cg) mint(cg.dataset.game); accLoad().then(function () { var b = $('#gry-best'), cur = $('.gp[data-game]'); if (b && cur) b.textContent = fmt(cur.dataset.game, best(cur.dataset.game)); }); });
 
   /* ---------- najlepsi gracze ---------- */
   function loadTop(g) {
@@ -757,7 +777,7 @@
     mount: function (el, sub, ctx) {
       stopAll();
       if (sub === 'slizgawka' && !unlocked()) sub = '';
-      if (sub && RUN[sub]) RUN[sub](el, ctx || {}); else hub(el);
+      if (sub && RUN[sub]) { mint(sub); RUN[sub](el, ctx || {}); } else hub(el);
       window.scrollTo(0, 0);
     },
     stop: stopAll,
