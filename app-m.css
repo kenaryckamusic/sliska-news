@@ -367,3 +367,8 @@ body { touch-action: manipulation; }
   .footer-links::before { margin-bottom: 2px; }
   .footer-inner > span:first-child { padding-top: 10px; margin-top: 2px; font-size: .72rem; }
 }
+
+/* iPhone (aplikacja z ekranu początkowego): pełnokryjący pasek pod zegarem – bez rozmycia treści przy statusie */
+@media (max-width: 860px) and (display-mode: standalone) {
+  html::after { content: ""; position: fixed; left: 0; right: 0; top: 0; height: env(safe-area-inset-top, 0px); z-index: 10000; background: var(--surface, #fff); pointer-events: none; }
+}
