@@ -764,7 +764,7 @@
       if (SPECIAL.indexOf(e[0]) >= 0) got('special'); if (st.k >= 95) got('rich'); if (st.h >= 95) got('viral'); if (st.s <= 10 && e[0] !== 'cancel') got('zero'); if (st.n <= 10) got('ice');
       if (run.used.indexOf('lawyer') >= 0) got('lawyer'); if (run.used.indexOf('spin') >= 0) got('spin'); if (run.fol >= 1e6) got('mln'); if (run.diff === 'hard' && ['cancel', 'bankrut', 'zalamanie'].indexOf(e[0]) < 0) got('hard');
       H.save(d);
-      H.submit('drama', d.endings.length, true); H.xp('drama'); H.played('drama'); endsBox();
+      H.submit('drama', d.endings.length, true); H.played('drama'); endsBox();
       $('#dr-ch').innerHTML = ''; $('#dr-step').textContent = 'Koniec';
       var qb = el.querySelector('[data-act="quit"]'); if (qb) qb.style.display = 'none';
       var ac = ach.map(function (k) { var a = ACH.filter(function (x) { return x[0] === k; })[0]; return '<span>' + ic('check', 12) + a[1] + '</span>'; }).join('');

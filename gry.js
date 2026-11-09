@@ -12,7 +12,6 @@
   function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* ignoruj */ } }
   function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignoruj */ } }
-  function xp(kind) { /* XP za gry i rekordy przyznaje serwer w jednym zgłoszeniu ukończenia (finish) */ }
   var logged = function () { try { return Readers.loggedIn() && (!Readers.hasName || Readers.hasName()); } catch (e) { return false; } };
   var uid = function () { try { return Readers.user && Readers.user.uid; } catch (e) { return ''; } };
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -79,9 +78,10 @@
     return v + ' ' + (G(g).unit || '');
   }
   /* ---- ukończenie gry: JEDNO zgłoszenie do serwera (wynik + rekord + XP). Serwer sprawdza bilet startowy, czas i wiarygodność wyniku. ---- */
-  var TK = {}, TLS = {}, lastFin = {}, GXP = { slizgle: 'slizgle', drama: 'drama', naczelny: 'drama', krzyzowka: 'krzyzowka' };
+  var TICKETED = ['krople', 'flappy', 'waz', 'slizgawka', 'ukladanka', 'drama', 'naczelny', 'krzyzowka'];
+  var TK = {}, TLS = {}, lastFin = {};
   function mint(g) {
-    if (!logged() || !window.actorApi || !G(g)) return Promise.resolve(null);
+    if (!logged() || !window.actorApi || TICKETED.indexOf(g) < 0) return Promise.resolve(null);
     return (TK[g] = actorApi('/gry/start', { method: 'POST', body: JSON.stringify({ game: g }) }).then(function (d) { return d && d.tk || null; }).catch(function () { return null; }));
   }
   function finish(g, score) {
@@ -89,17 +89,13 @@
     lastFin[g] = Date.now();
     var p = TK[g] || mint(g); delete TK[g];
     p.then(function (tk) {
-      if (!tk) return legacy(g, score);                       // stary Worker bez /gry/finish – tymczasowy powrót do dawnych ścieżek
+      if (!tk) return null;
       return actorApi('/gry/finish', { method: 'POST', body: JSON.stringify({ game: g, score: score, tk: tk, tl: TLS[g] || undefined }) }).then(function (d) {
         delete TLS[g];
         if (d && d.best != null) { if (acc) acc.best[g] = d.best; var b = $('#gry-best'); if (b) b.textContent = fmt(g, best(g)); }
         if (d && d.xp && d.xp.got && window.SnXP) SnXP.gained(d.xp);
       });
     }).catch(function () {}).then(function () { mint(g); });
-  }
-  function legacy(g, score) {
-    actorApi('/gry/record', { method: 'POST', body: JSON.stringify({ game: g, score: score }) }).catch(function () {});
-    if (window.SnXP) { SnXP.earn(GXP[g] || 'game'); }
   }
   function accLoad() {
     if (!logged() || !window.actorApi) { acc = null; return Promise.resolve(null); }
@@ -111,12 +107,12 @@
     }).catch(function () { return null; });
   }
   /** Zapis wyniku. Zwraca true, gdy to nowy rekord (konta albo urządzenia). */
-  function submit(g, score, noPlay) {
+  function submit(g, score, noPlay, localOnly) {
     var d = load(); d.best = d.best || {}; if (!noPlay) d.played = (d.played || 0) + 1;
     var nb = better(g, score, best(g));
     if (better(g, score, d.best[g])) d.best[g] = score;
     save(d);
-    if (logged()) finish(g, score);
+    if (logged() && !localOnly) finish(g, score);
     var b = $('#gry-best'); if (b) b.textContent = fmt(g, best(g));
     return nb;
   }
@@ -185,29 +181,44 @@
     accLoad().then(function () { var b = $('#gry-best'); if (b) b.textContent = fmt(g.id, best(g.id)); });
   }
 
-  /* ============== ŚLIZGLE (codzienne słowo) ============== */
-  var WORDS = ['AFERA', 'ZDRADA', 'WTOPA', 'SKANDAL', 'POZEW', 'HEJTER', 'ROMANS', 'PLOTKA', 'OBCIACH', 'FLIRT', 'PRZYPAŁ', 'ŚCIEMA', 'DRAMA', 'WYCIEK', 'NAGONKA', 'KŁAMCA', 'PLAGIAT', 'BLOKADA', 'ZAWIŚĆ', 'TOKSYK', 'KŁÓTNIA', 'BURDA', 'OSZUST', 'IMPREZA', 'RANDKA', 'GOLAS', 'WSTYD', 'PODRÓBA', 'ARESZT', 'MANDAT', 'HEJT', 'FEJK', 'DISS', 'BEEF', 'LANS', 'SPINA', 'BYŁA', 'BÓJKA', 'ŚLISKO', 'MOKRO'];
+  /* ============== ŚLIZGLE ============== */
+  /* Słowo dnia zna wyłącznie serwer: strona wysyła próbę (POST /gry/slizgle), a w odpowiedzi dostaje kolory pól.
+     Trening działa lokalnie na własnej liście słów i nie wpływa na statystyki ani XP. */
+  var TRAIN_WORDS = ['AFERA', 'ZDRADA', 'WTOPA', 'SKANDAL', 'POZEW', 'HEJTER', 'ROMANS', 'PLOTKA', 'OBCIACH', 'FLIRT', 'PRZYPAŁ', 'ŚCIEMA', 'DRAMA', 'WYCIEK', 'NAGONKA', 'KŁAMCA', 'PLAGIAT', 'BLOKADA', 'ZAWIŚĆ', 'TOKSYK', 'KŁÓTNIA', 'BURDA', 'OSZUST', 'IMPREZA', 'RANDKA', 'GOLAS', 'WSTYD', 'PODRÓBA', 'ARESZT', 'MANDAT', 'HEJT', 'FEJK', 'DISS', 'BEEF', 'LANS', 'SPINA', 'BYŁA', 'BÓJKA', 'ŚLISKO', 'MOKRO'];
   var KB = ['QWERTYUIOP', 'ASDFGHJKL', '⏎ZXCVBNM⌫', 'ĄĆĘŁŃÓŚŹŻ'];
-  function slizgleKey() { return 'sn-slizgle-' + dayIndex(); }
-  function slizgleState() { return lsGet(slizgleKey()); }
-  function slizgleAnswer(c) { return c && c.slizgle && c.slizgle.day === dayIndex() && c.slizgle.word ? c.slizgle.word : WORDS[((dayIndex() % WORDS.length) + WORDS.length) % WORDS.length]; }
-  function slizgle(el) {
-    var g = G('slizgle');
-    shell(el, g, '<div class="sz"><p class="sz-load">Ładowanie słowa dnia…</p></div>', { tag: 'Słowo dnia #' + (dayIndex() + 1), side: '<section class="gp-box" id="sz-stats-box"></section>' });
-    cfg().then(function (c) { if ($('.gp[data-game="slizgle"]')) slizgleRun(el, slizgleAnswer(c)); });
+  var slizgleKey = function () { return 'sn-slizgle-' + dayIndex(); };
+  var slizgleState = function () { return lsGet(slizgleKey()); };
+  var randomTrainWord = function (not) { var w; do { w = TRAIN_WORDS[Math.floor(Math.random() * TRAIN_WORDS.length)]; } while (w === not); return w; };
+
+  function slizgleCall(body) {
+    var json = JSON.stringify(body);
+    if (logged() && window.actorApi) return actorApi('/gry/slizgle', { method: 'POST', body: json });
+    return fetch(API + '/gry/slizgle', { method: 'POST', headers: { 'content-type': 'application/json' }, body: json })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) { var e = new Error(d.error || 'http'); e.status = r.status; throw e; } return d; }); });
   }
-  function slizgleRun(el, answer, train) {
-    if (slizgleRun.off) slizgleRun.off(); if (!train) slizgleRun.day = answer;
-    var L = answer.length, st = train ? null : slizgleState(), flipRow = -1;
-    if (!st || st.a !== answer) st = { a: answer, rows: [], end: false, win: false };
-    var cur = '', stats = lsGet('sn-slizgle-stats') || { played: 0, wins: 0, streak: 0, max: 0, dist: [0, 0, 0, 0, 0, 0], last: -9 };
-    $('.sz').innerHTML = '<div class="sz-tabs" role="tablist"><button type="button" role="tab" data-m="day" class="' + (train ? '' : 'is-on') + '" aria-selected="' + !train + '">Słowo dnia</button><button type="button" role="tab" data-m="train" class="' + (train ? 'is-on' : '') + '" aria-selected="' + !!train + '">Trening</button></div><div class="sz-board" id="sz-board" style="--n:' + L + '"></div><p class="sz-msg" id="sz-msg" role="status"></p><div class="sz-acts"><button type="button" class="btn btn-sm" id="sz-hint">Podpowiedź</button></div><div class="sz-kb" id="sz-kb"></div>';
-    function score(w) {
-      var res = Array(L).fill('no'), a = answer.split(''), used = Array(L).fill(false);
+  function slizgle(el) {
+    shell(el, G('slizgle'), '<div class="sz"><p class="sz-load">Ładowanie słowa dnia…</p></div>', { tag: 'Słowo dnia #' + (dayIndex() + 1), side: '<section class="gp-box" id="sz-stats-box"></section>' });
+    cfg().then(function (c) {
+      if (!$('.gp[data-game="slizgle"]')) return;
+      var sl = (c && c.slizgle) || {}, len = sl.len || (sl.word || '').length;
+      if (len) slizgleRun(el, len); else $('.sz').innerHTML = '<p class="sz-load">Słowo dnia chwilowo niedostępne. Odśwież stronę za chwilę.</p>';
+    });
+  }
+  function slizgleRun(el, len, trainWord) {
+    if (slizgleRun.off) slizgleRun.off();
+    var train = !!trainWord, L = len, flipRow = -1, busy = false, cur = '';
+    var st = train ? null : slizgleState();
+    if (!st || st.len !== L) st = { len: L, rows: [], pat: [], end: false, win: false, hint: false, tok: '', ans: '' };
+    var stats = lsGet('sn-slizgle-stats') || { played: 0, wins: 0, streak: 0, max: 0, dist: [0, 0, 0, 0, 0, 0], last: -9 };
+    $('.sz').innerHTML = '<div class="sz-tabs" role="tablist"><button type="button" role="tab" data-m="day" class="' + (train ? '' : 'is-on') + '" aria-selected="' + !train + '">Słowo dnia</button><button type="button" role="tab" data-m="train" class="' + (train ? 'is-on' : '') + '" aria-selected="' + train + '">Trening</button></div><div class="sz-board" id="sz-board" style="--n:' + L + '"></div><p class="sz-msg" id="sz-msg" aria-live="polite"></p><div class="sz-kb" id="sz-kb"></div><button type="button" class="btn btn-ghost btn-sm sz-hint" id="sz-hint">💡 Podpowiedź</button>';
+    var msg = function (t) { $('#sz-msg').textContent = t; };
+    function trainScore(w) {
+      var res = Array(L).fill('no'), a = trainWord.split(''), used = Array(L).fill(false);
       w.split('').forEach(function (c, i) { if (c === a[i]) { res[i] = 'ok'; used[i] = true; } });
       w.split('').forEach(function (c, i) { if (res[i] === 'ok') return; var j = a.findIndex(function (x, k) { return x === c && !used[k]; }); if (j >= 0) { res[i] = 'in'; used[j] = true; } });
       return res;
     }
+    var pattern = function (i) { return train ? trainScore(st.rows[i]) : st.pat[i]; };
     function statsHtml() {
       var mx = Math.max.apply(null, stats.dist.concat([1]));
       return '<h3>Twoje Ślizgle</h3><div class="sz-st"><span><b>' + stats.played + '</b>gier</span><span><b>' + (stats.played ? Math.round(stats.wins / stats.played * 100) : 0) + '%</b>wygranych</span><span><b>' + stats.streak + '</b>seria</span><span><b>' + stats.max + '</b>najdłuższa</span></div>' +
@@ -216,57 +227,87 @@
     function draw() {
       var rows = '';
       for (var r = 0; r < 6; r++) {
-        var w = st.rows[r] || (r === st.rows.length && !st.end ? cur : ''), sc = st.rows[r] ? score(st.rows[r]) : null, act = r === st.rows.length && !st.end;
-        var cells = ''; for (var i = 0; i < L; i++) cells += '<span class="sz-c' + (sc ? ' sz-' + sc[i] + (flipRow === r ? ' is-flip' : '') : w[i] ? ' sz-f' : '') + '"' + (sc && flipRow === r ? ' style="animation-delay:' + i * 120 + 'ms"' : '') + '>' + (w[i] || '') + '</span>';
+        var w = st.rows[r] || (r === st.rows.length && !st.end ? cur : ''), sc = st.rows[r] ? pattern(r) : null, act = r === st.rows.length && !st.end, cells = '';
+        for (var i = 0; i < L; i++) cells += '<span class="sz-c' + (sc ? ' sz-' + sc[i] + (flipRow === r ? ' is-flip' : '') : w[i] ? ' sz-f' : '') + '"' + (sc && flipRow === r ? ' style="animation-delay:' + i * 120 + 'ms"' : '') + '>' + (w[i] || '') + '</span>';
         rows += '<div class="sz-row' + (act ? ' is-act' : '') + '">' + cells + '</div>';
       }
       $('#sz-board').innerHTML = rows;
-      var stt = {};
-      st.rows.forEach(function (w) { score(w).forEach(function (s, i) { var c = w[i], o = stt[c]; stt[c] = o === 'ok' || s === 'ok' ? 'ok' : o === 'in' || s === 'in' ? 'in' : 'no'; }); });
-      $('#sz-kb').innerHTML = KB.map(function (row) { return '<div class="sz-kr">' + row.split('').map(function (c) { var w = c === '⏎' || c === '⌫'; return '<button type="button" class="sz-key' + (w ? ' is-wide' : '') + (stt[c] ? ' sz-' + stt[c] : '') + '" data-k="' + c + '" aria-label="' + (c === '⏎' ? 'Zatwierdź' : c === '⌫' ? 'Usuń' : c) + '">' + (c === '⏎' ? 'OK' : c) + '</button>'; }).join('') + '</div>'; }).join('');
+      var keys = {};
+      st.rows.forEach(function (w, ri) { pattern(ri).forEach(function (s, i) { var c = w[i], o = keys[c]; keys[c] = o === 'ok' || s === 'ok' ? 'ok' : o === 'in' || s === 'in' ? 'in' : 'no'; }); });
+      $('#sz-kb').innerHTML = KB.map(function (row) { return '<div class="sz-kr">' + row.split('').map(function (c) { var wide = c === '⏎' || c === '⌫'; return '<button type="button" class="sz-key' + (wide ? ' is-wide' : '') + (keys[c] ? ' sz-' + keys[c] : '') + '" data-k="' + c + '" aria-label="' + (c === '⏎' ? 'Zatwierdź' : c === '⌫' ? 'Usuń' : c) + '">' + (c === '⏎' ? 'OK' : c) + '</button>'; }).join('') + '</div>'; }).join('');
       $('#sz-stats-box').innerHTML = train ? '<h3>Trening</h3><p>Ćwicz bez limitu na losowych słowach. Wyniki z treningu nie liczą się do statystyk, serii ani XP.</p>' : statsHtml();
-      if (st.end && train) {
-        $('#sz-msg').innerHTML = '<div class="sz-end' + (st.win ? ' is-win' : '') + '">' + K(st.win ? 'imprezowa' : 'ratownik', 'gk') + '<div><b>' + (st.win ? 'Trafione!' : 'Tym razem sucho') + '</b><span>' + (st.win ? 'Zgadłeś w ' + st.rows.length + '/6.' : 'To było: ' + answer + '.') + '</span></div><button type="button" class="btn btn-primary btn-sm" id="sz-next">Następne słowo</button></div>';
-        $('#sz-next').onclick = function () { var w; do { w = WORDS[Math.floor(Math.random() * WORDS.length)]; } while (w === answer); slizgleRun(el, w, true); };
+      if (!st.end) return;
+      var answer = train ? trainWord : st.ans, face = K(st.win ? 'imprezowa' : 'ratownik', 'gk');
+      if (train) {
+        $('#sz-msg').innerHTML = '<div class="sz-end' + (st.win ? ' is-win' : '') + '">' + face + '<div><b>' + (st.win ? 'Trafione!' : 'Tym razem sucho') + '</b><span>' + (st.win ? 'Zgadłeś w ' + st.rows.length + '/6.' : 'To było: ' + answer + '.') + '</span></div><button type="button" class="btn btn-primary btn-sm" id="sz-next">Następne słowo</button></div>';
+        $('#sz-next').onclick = function () { slizgleRun(el, randomTrainWord(trainWord).length, randomTrainWord(trainWord)); };
         return;
       }
-      if (st.end) {
-        var txt = 'Ślizgle #' + (dayIndex() + 1) + ' ' + (st.win ? st.rows.length : 'X') + '/6' + (st.hint ? ' 💡' : '') + '\n' + st.rows.map(function (w) { return score(w).map(function (s) { return s === 'ok' ? '🟩' : s === 'in' ? '🟨' : '⬛'; }).join(''); }).join('\n') + '\n' + LINK + '/slizgle';
-        $('#sz-msg').innerHTML = '<div class="sz-end' + (st.win ? ' is-win' : '') + '">' + K(st.win ? 'imprezowa' : 'ratownik', 'gk') + '<div><b>' + (st.win ? ['Geniusz!', 'Mokro!', 'Świetnie!', 'Nieźle!', 'Uff!', 'Na styk!'][st.rows.length - 1] : 'Tym razem sucho') + '</b><span>' + (st.win ? 'Zgadłeś w ' + st.rows.length + '/6.' : 'Słowo dnia: ' + answer + '.') + ' Nowe słowo o północy.</span></div><button type="button" class="btn btn-primary btn-sm" id="sz-share">' + ICO.share + ' Udostępnij</button></div>';
-        $('#sz-share').onclick = function () { share(txt); };
-      }
+      var share = 'Ślizgle #' + (dayIndex() + 1) + ' ' + (st.win ? st.rows.length : 'X') + '/6' + (st.hint ? ' 💡' : '') + '\n' + st.rows.map(function (_, i) { return pattern(i).map(function (s) { return s === 'ok' ? '🟩' : s === 'in' ? '🟨' : '⬛'; }).join(''); }).join('\n') + '\n' + LINK + '/slizgle';
+      $('#sz-msg').innerHTML = '<div class="sz-end' + (st.win ? ' is-win' : '') + '">' + face + '<div><b>' + (st.win ? ['Geniusz!', 'Mokro!', 'Świetnie!', 'Nieźle!', 'Uff!', 'Na styk!'][st.rows.length - 1] : 'Tym razem sucho') + '</b><span>' + (st.win ? 'Zgadłeś w ' + st.rows.length + '/6.' : 'Słowo dnia: ' + answer + '.') + ' Nowe słowo o północy.</span></div><button type="button" class="btn btn-primary btn-sm" id="sz-share">Udostępnij wynik</button></div>';
+      $('#sz-share').onclick = function () { share(share); };
     }
-    function finish(win) {
-      st.end = true; st.win = win; if (train) return; var di = dayIndex();
-      stats.played++; if (win) { stats.wins++; stats.dist[st.rows.length - 1]++; stats.streak = stats.last === di - 1 ? stats.streak + 1 : 1; stats.max = Math.max(stats.max, stats.streak); } else stats.streak = 0;
+    /* koniec rundy: statystyki lokalne; rekord i XP przyznał już serwer w odpowiedzi na ostatnią próbę */
+    function endRound(win, reply) {
+      st.end = true; st.win = win;
+      if (train) return;
+      var di = dayIndex();
+      stats.played++;
+      if (win) { stats.wins++; stats.dist[st.rows.length - 1]++; stats.streak = stats.last === di - 1 ? stats.streak + 1 : 1; stats.max = Math.max(stats.max, stats.streak); } else stats.streak = 0;
       stats.last = win ? di : -9; lsSet('sn-slizgle-stats', stats);
-      if (win) { submit('slizgle', 7 - st.rows.length); xp('slizgle'); } else { var d = load(); d.played = (d.played || 0) + 1; save(d); xp('game'); }
+      if (win) submit('slizgle', 7 - st.rows.length, false, true); else { var d = load(); d.played = (d.played || 0) + 1; save(d); }
+      if (reply && reply.xp && reply.xp.got && window.SnXP) SnXP.gained(reply.xp);
       played('slizgle'); setTimeout(zone, 0);
     }
-    function press(k) {
-      if (st.end) return;
-      if (k === '⌫' || k === 'Backspace') cur = cur.slice(0, -1);
-      else if (k === '⏎' || k === 'Enter') {
-        if (cur.length < L) { $('#sz-msg').textContent = 'Słowo ma ' + L + ' liter.'; var a = $('.sz-row.is-act'); if (a) { a.classList.remove('is-shake'); void a.offsetWidth; a.classList.add('is-shake'); } return; }
-        st.rows.push(cur); cur = ''; flipRow = st.rows.length - 1;
-        if (st.rows[st.rows.length - 1] === answer) finish(true); else if (st.rows.length >= 6) finish(false);
-        $('#sz-msg').textContent = '';
-        if (!train) lsSet(slizgleKey(), st);
-      } else if (/^[A-ZĄĆĘŁŃÓŚŹŻ]$/i.test(k) && cur.length < L) cur += k.toUpperCase();
+    function shake() { var a = $('.sz-row.is-act'); if (a) { a.classList.remove('is-shake'); void a.offsetWidth; a.classList.add('is-shake'); } }
+    function accept(word, reply, win, over) {
+      st.rows.push(word); flipRow = st.rows.length - 1; cur = '';
+      if (!train) { st.pat.push(reply.res); st.tok = reply.st; if (reply.answer) st.ans = reply.answer; }
+      if (over) endRound(win, reply);
+      msg(''); if (!train) lsSet(slizgleKey(), st);
       draw(); flipRow = -1;
+    }
+    function submitRow() {
+      if (cur.length < L) { msg('Słowo ma ' + L + ' liter.'); shake(); return; }
+      if (train) { var win = cur === trainWord; accept(cur, null, win, win || st.rows.length >= 5); return; }
+      if (busy) return; busy = true; var word = cur;
+      slizgleCall({ guess: word, st: st.tok }).then(function (d) { accept(word, d, d.win, d.over); })
+        .catch(function (e) { msg(e.status === 404 || e.message === 'gone' ? 'Serwer jest w trakcie aktualizacji. Spróbuj za chwilę.' : e.message === 'rate' ? 'Za dużo prób. Poczekaj chwilę.' : 'Nie udało się sprawdzić słowa. Spróbuj ponownie.'); shake(); })
+        .then(function () { busy = false; });
+    }
+    function press(k) {
+      if (st.end || busy) return;
+      if (k === '⌫' || k === 'Backspace') cur = cur.slice(0, -1);
+      else if (k === '⏎' || k === 'Enter') { submitRow(); return; }
+      else if (/^[A-ZĄĆĘŁŃÓŚŹŻ]$/i.test(k) && cur.length < L) cur += k.toUpperCase();
+      draw();
     }
     $('#sz-kb').addEventListener('click', function (e) { var b = e.target.closest('[data-k]'); if (b) press(b.dataset.k); });
     var onKey = function (e) { if (e.ctrlKey || e.metaKey || e.altKey || /input|textarea/i.test((e.target || {}).tagName)) return; if (e.key === 'Enter' || e.key === 'Backspace' || /^[a-ząćęłńóśźż]$/i.test(e.key)) { e.preventDefault(); press(e.key); } };
-    document.addEventListener('keydown', onKey); slizgleRun.off = function () { document.removeEventListener('keydown', onKey); slizgleRun.off = null; }; stopFns.push(function () { if (slizgleRun.off) slizgleRun.off(); });
-    $('.sz-tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-m]'); if (!b) return; if (b.dataset.m === 'train') { var w; do { w = WORDS[Math.floor(Math.random() * WORDS.length)]; } while (w === slizgleRun.day); slizgleRun(el, w, true); } else slizgleRun(el, slizgleRun.day); });
+    document.addEventListener('keydown', onKey);
+    slizgleRun.off = function () { document.removeEventListener('keydown', onKey); slizgleRun.off = null; };
+    stopFns.push(function () { if (slizgleRun.off) slizgleRun.off(); });
+    $('.sz-tabs').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-m]'); if (!b) return;
+      if (b.dataset.m === 'train') { var w = randomTrainWord(); slizgleRun(el, w.length, w); } else slizgleRun(el, len);
+    });
     $('#sz-hint').addEventListener('click', function () {
-      if (st.end) return; var known = {}; st.rows.forEach(function (w) { for (var i = 0; i < L; i++) if (w[i] === answer[i]) known[i] = 1; });
-      var left = []; for (var i = 0; i < L; i++) if (!known[i]) left.push(i); if (!left.length) return;
-      var idx = left[Math.floor(Math.random() * left.length)]; st.hint = true; if (!train) lsSet(slizgleKey(), st);
-      $('#sz-msg').textContent = 'Podpowiedź: litera ' + (idx + 1) + ' to „' + answer[idx] + '”.';
+      if (st.end || busy) return;
+      if (train) {
+        var known = {}, left = []; st.rows.forEach(function (w) { for (var i = 0; i < L; i++) if (w[i] === trainWord[i]) known[i] = 1; });
+        for (var i = 0; i < L; i++) if (!known[i]) left.push(i);
+        if (left.length) { var idx = left[Math.floor(Math.random() * left.length)]; msg('Podpowiedź: litera ' + (idx + 1) + ' to „' + trainWord[idx] + '”.'); }
+        return;
+      }
+      if (st.hint) { msg('Podpowiedź na dziś już wykorzystana.'); return; }
+      busy = true;
+      slizgleCall({ hint: true, st: st.tok }).then(function (d) { st.hint = true; st.tok = d.st; lsSet(slizgleKey(), st); msg('Podpowiedź: litera ' + (d.pos + 1) + ' to „' + d.ch + '”.'); })
+        .catch(function () { msg('Podpowiedź chwilowo niedostępna.'); })
+        .then(function () { busy = false; });
     });
     draw();
   }
+
 
   /* ============== wspólny silnik gier zręcznościowych (canvas) ============== */
   var imgCache = {};
@@ -292,7 +333,6 @@
       over: function () {
         if (over) return; over = true; running = false; cancelAnimationFrame(raf);
         var sc = api.score; if (api.tl) { api.tl.push([Math.round(api.t * 1000), sc]); TLS[g.id] = api.tl; } var nb = sc > 0 && submit(g.id, sc);
-        if (sc > 0) { xp('game'); if (nb) xp('record'); }
         played(g.id);
         var et = opts.endText ? opts.endText(sc) : ['', g.knaga];
         menu('<span class="gm-eye">Koniec gry</span><div class="gm-k">' + K(et[1] || g.knaga, 'gk') + '</div><p class="gm-end">' + et[0] + '</p><div class="gm-score">' + sc + '<small>' + (g.unit || '') + '</small></div>' +
@@ -659,7 +699,7 @@
       if (!t0) { t0 = Date.now(); timer = setInterval(function () { var s = Math.floor((Date.now() - t0) / 1000); $('#uk-t').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }, 500); }
       draw();
       if (tiles.every(function (v, k) { return v === k; })) {
-        clearInterval(timer); var dd = load(); dd.ukBest = dd.ukBest || {}; var nbl = !dd.ukBest[N] || moves < dd.ukBest[N]; if (nbl) { dd.ukBest[N] = moves; save(dd); } if (N === 4) TLS.ukladanka = tlU; var nb = N === 4 ? submit('ukladanka', moves) : nbl; xp('game'); if (nb) xp('record'); played('ukladanka'); var pr = PAR[N] || [999, 999], medal = moves <= pr[0] ? 'Złoty medal' : moves <= pr[1] ? 'Srebrny medal' : 'Ułożone';
+        clearInterval(timer); var dd = load(); dd.ukBest = dd.ukBest || {}; var nbl = !dd.ukBest[N] || moves < dd.ukBest[N]; if (nbl) { dd.ukBest[N] = moves; save(dd); } if (N === 4) TLS.ukladanka = tlU; var nb = N === 4 ? submit('ukladanka', moves) : nbl; played('ukladanka'); var pr = PAR[N] || [999, 999], medal = moves <= pr[0] ? 'Złoty medal' : moves <= pr[1] ? 'Srebrny medal' : 'Ułożone';
         $('#uk-board').classList.add('is-done');
         var dn = $('#uk-done'); dn.hidden = false;
         dn.innerHTML = '<div class="gm">' + (nb ? '<span class="gry-new">Nowy rekord!</span>' : '<span class="gm-eye">' + medal + '</span>') + '<div class="gm-score">' + moves + '<small>ruchów</small></div><p class="gm-end">' + (nb ? medal + ' · ' : '') + 'Czas: ' + $('#uk-t').textContent + ' · poziom ' + N + '×' + N + (N === 4 ? ' (liczy się do rankingu)' : '') + '</p><div class="gm-acts"><button type="button" class="btn btn-primary" id="uk-again">Jeszcze raz</button>' + (art ? '<a class="btn" href="#/artykul/' + encodeURIComponent(art.id) + '">Czytaj artykuł</a>' : '') + '</div></div>';
@@ -684,7 +724,7 @@
   /* ============== DRAMA SIMULATOR (news/drama.js) ============== */
   function drama(el) {
     if (!window.DramaSim) { shell(el, G('drama'), '<p class="gp-empty">Nie udało się wczytać gry. Odśwież stronę.</p>'); return; }
-    DramaSim.mount(el, { G: G, K: K, esc: esc, shell: shell, submit: submit, xp: xp, played: played, share: share, load: load, save: save, toast: toast, LINK: LINK + '/drama' });
+    DramaSim.mount(el, { G: G, K: K, esc: esc, shell: shell, submit: submit, played: played, share: share, load: load, save: save, toast: toast, LINK: LINK + '/drama' });
   }
 
   /* ============== KRZYŻÓWKA TYGODNIA (krzyżówka z hasłem) ============== */
@@ -748,7 +788,7 @@
       grid.classList.add('is-done'); [].forEach.call(grid.querySelectorAll('.kz-c'), function (i) { i.readOnly = true; }); $('#kz-pass').classList.add('is-done'); pass();
       $('#kz-msg').innerHTML = '<div class="sz-end is-win">' + K('imprezowa', 'gk') + '<div><b>Rozwiązane!</b><span>Hasło tygodnia: ' + set.h + '. Mokra robota.</span></div><button type="button" class="btn btn-primary btn-sm" id="kz-share">' + ICO.share + ' Udostępnij</button></div>';
       $('#kz-share').onclick = function () { share('Rozwiązałem Krzyżówkę Tygodnia na Śliskiej 🧩 Dasz radę?\n' + LINK + '/krzyzowka'); };
-      if (!st.done) { st.done = 1; lsSet(key, st); lsSet('sn-krzyz-done-' + weekIndex(), 1); var d = load(); d.solved = (d.solved || 0) + 1; save(d); submit('krzyzowka', d.solved); xp('krzyzowka'); played('krzyzowka'); toast('Krzyżówka rozwiązana! 🧩'); }
+      if (!st.done) { st.done = 1; lsSet(key, st); lsSet('sn-krzyz-done-' + weekIndex(), 1); var d = load(); d.solved = (d.solved || 0) + 1; save(d); submit('krzyzowka', d.solved); played('krzyzowka'); toast('Krzyżówka rozwiązana! 🧩'); }
     }
     $('#kz-check').onclick = function () {
       var bad = 0, empty = 0;
