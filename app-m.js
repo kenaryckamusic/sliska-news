@@ -155,8 +155,7 @@
     h += '<h3>Śliska strefa</h3><div class="m-grid">' +
       link('#/gry', 'game', 'Śliskie Gry') +
       link('#/sezon', 'cup', 'Ranking sezonu') +
-      link('#/dramy', 'fire', 'Osie dram') +
-      link('#/podsumowanie', 'spark', 'Twój miesiąc') + '</div>';
+      link('#/dramy', 'fire', 'Osie dram') + '</div>';
     h += '<h3>Aplikacja</h3><div class="m-grid">' +
       link('#/zapisane', 'mark', 'Zapisane') +
       link('#/redakcja', 'team', 'Redakcja') +

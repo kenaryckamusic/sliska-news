@@ -986,7 +986,6 @@ function currentRoute() {
   if (parts[0] === 'spot' || parts[0] === 'reklama') return { name: 'spot' };
   if (parts[0] === 'gry') return { name: 'games', sub: parts[1] || '' };
   if (parts[0] === 'sezon') return { name: 'season', m: parts[1] || '' };
-  if (parts[0] === 'podsumowanie') return { name: 'summary', m: parts[1] || '' };
   if (parts[0] === 'drama' && parts[1]) return { name: 'saga', id: decodeURIComponent(parts[1]) };
   if (parts[0] === 'dramy') return { name: 'sagas' };
   if (parts[0] === 'prywatnosc' || parts[0] === 'regulamin') return { name: 'legal', doc: parts[0] };
@@ -4072,7 +4071,7 @@ function routeCore() {
     const t = r.name === 'season' ? 'Ranking sezonu' : 'Śliskie Podsumowanie miesiąca';
     document.title = `${t} – ${CONFIG.SITE_NAME}`;
     setMeta(t, r.name === 'season' ? 'Ranking Ślizgaczy: punkty XP za czytanie, komentarze i gry. Nowy sezon co miesiąc.' : 'Twój miesiąc na Śliskiej News w liczbach.');
-    if (window.SnXP) SnXP[r.name === 'season' ? 'ranking' : 'summary']($('#view-xp'), r.m);
+    if (window.SnXP) SnXP.ranking($('#view-xp'), r.m);
     window.scrollTo(0, 0);
   } else if (r.name === 'saga' || r.name === 'sagas') {
     showView('xp');

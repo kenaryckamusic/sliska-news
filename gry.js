@@ -161,7 +161,7 @@
       '<h2 class="gh-h">Zręcznościowe</h2><div class="gh-grid">' + ['krople', 'flappy', 'waz'].concat(hidden ? [] : ['slizgawka']).map(function (id) { return tile(G(id)); }).join('') + '</div>' +
       '<h2 class="gh-h">Na spokojnie</h2><div class="gh-grid">' + ['drama', 'ukladanka'].map(function (id) { return tile(G(id)); }).join('') + '</div>' +
       (hidden ? '<p class="gry-hint">Psst… ponoć jest tu jeszcze jedna, ukryta gra. Knaga coś wie.</p>' : '') +
-      '<nav class="gh-more" aria-label="Śliska strefa"><a href="#/sezon">' + ICO.cup + '<span><b>Ranking sezonu</b><small>Kto zebrał najwięcej XP w tym miesiącu</small></span></a><a href="#/dramy">' + ICO.fire + '<span><b>Osie czasu dram</b><small>Afery krok po kroku</small></span></a><a href="#/podsumowanie">' + ICO.spark + '<span><b>Twój miesiąc</b><small>Śliskie Podsumowanie</small></span></a></nav></div>';
+      '<nav class="gh-more" aria-label="Śliska strefa"><a href="#/sezon">' + ICO.cup + '<span><b>Ranking sezonu</b><small>Kto zebrał najwięcej XP w tym miesiącu</small></span></a><a href="#/dramy">' + ICO.fire + '<span><b>Osie czasu dram</b><small>Afery krok po kroku</small></span></a></nav></div>';
     var clicks = 0, kb = $('#gry-hero-k', el);
     kb.addEventListener('click', function () {
       clicks++; kb.classList.remove('is-poke'); void kb.offsetWidth; kb.classList.add('is-poke');
@@ -627,7 +627,7 @@
 
   /* ============== ŚLISKA UKŁADANKA ============== */
   function ukladanka(el, ctx) {
-    var g = G('ukladanka'), arts = (ctx.articles || []).filter(function (a) { return a.image; }), N = 3, tiles, moves, art, t0, timer;
+    var g = G('ukladanka'), arts = (ctx.articles || []).filter(function (a) { return a.image; }), N = 3, tiles, moves, art, t0, timer, tlU = [], tu0 = 0;
     shell(el, g, '<div class="uk"><div class="uk-bar"><div class="uk-seg" role="group" aria-label="Poziom"><button type="button" data-n="3" class="is-on">3×3</button><button type="button" data-n="4">4×4</button><button type="button" data-n="5">5×5</button></div>' +
       '<span class="uk-chip"><small>Ruchy</small><b id="uk-m">0</b></span><span class="uk-chip"><small>Czas</small><b id="uk-t">0:00</b></span><span class="uk-chip"><small>Rekord</small><b id="uk-b">–</b></span></div>' +
       '<div class="uk-frame"><div class="uk-board" id="uk-board"></div><div class="uk-ghost" id="uk-ghost" hidden></div><div class="uk-done" id="uk-done" hidden></div></div>' +
@@ -637,7 +637,7 @@
     function solvable(a) { var inv = 0, f = a.filter(function (x) { return x !== N * N - 1; }); for (var i = 0; i < f.length; i++) for (var j = i + 1; j < f.length; j++) if (f[i] > f[j]) inv++; if (N % 2) return inv % 2 === 0; var row = N - Math.floor(a.indexOf(N * N - 1) / N); return (inv + row) % 2 === 1; }
     function start() {
       do { tiles = Array.from({ length: N * N }, function (_, i) { return i; }).sort(function () { return Math.random() - .5; }); } while (!solvable(tiles) || tiles.every(function (v, i) { return v === i; }));
-      moves = 0; t0 = 0; clearInterval(timer); $('#uk-t').textContent = '0:00'; $('#uk-done').hidden = true; $('#uk-board').classList.remove('is-done'); draw();
+      moves = 0; t0 = 0; tlU = []; tu0 = Date.now(); clearInterval(timer); $('#uk-t').textContent = '0:00'; $('#uk-done').hidden = true; $('#uk-board').classList.remove('is-done'); draw();
       $('#uk-ghost').style.backgroundImage = 'url("' + src() + '")';
       $('#uk-art').innerHTML = art ? 'Zdjęcie z artykułu: <a href="#/artykul/' + encodeURIComponent(art.id) + '">' + esc(art.title) + '</a>' : 'Brak zdjęć z artykułów – układamy Knagę.';
     }
@@ -655,11 +655,11 @@
       var b = e.target.closest('[data-i]'); if (!b) return; var i = +b.dataset.i, e0 = tiles.indexOf(N * N - 1);
       var ri = Math.floor(i / N), re = Math.floor(e0 / N); if (i === e0 || (ri !== re && i % N !== e0 % N)) return;
       var stp = ri === re ? (i > e0 ? 1 : -1) : (i > e0 ? N : -N); for (var pp = e0; pp !== i; pp += stp) tiles[pp] = tiles[pp + stp];
-      tiles[i] = N * N - 1; moves++; var mvd = i;
+      tiles[i] = N * N - 1; moves++; tlU.push([Date.now() - tu0, moves]); var mvd = i;
       if (!t0) { t0 = Date.now(); timer = setInterval(function () { var s = Math.floor((Date.now() - t0) / 1000); $('#uk-t').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }, 500); }
       draw();
       if (tiles.every(function (v, k) { return v === k; })) {
-        clearInterval(timer); var dd = load(); dd.ukBest = dd.ukBest || {}; var nbl = !dd.ukBest[N] || moves < dd.ukBest[N]; if (nbl) { dd.ukBest[N] = moves; save(dd); } var nb = N === 4 ? submit('ukladanka', moves) : nbl; xp('game'); if (nb) xp('record'); played('ukladanka'); var pr = PAR[N] || [999, 999], medal = moves <= pr[0] ? 'Złoty medal' : moves <= pr[1] ? 'Srebrny medal' : 'Ułożone';
+        clearInterval(timer); var dd = load(); dd.ukBest = dd.ukBest || {}; var nbl = !dd.ukBest[N] || moves < dd.ukBest[N]; if (nbl) { dd.ukBest[N] = moves; save(dd); } if (N === 4) TLS.ukladanka = tlU; var nb = N === 4 ? submit('ukladanka', moves) : nbl; xp('game'); if (nb) xp('record'); played('ukladanka'); var pr = PAR[N] || [999, 999], medal = moves <= pr[0] ? 'Złoty medal' : moves <= pr[1] ? 'Srebrny medal' : 'Ułożone';
         $('#uk-board').classList.add('is-done');
         var dn = $('#uk-done'); dn.hidden = false;
         dn.innerHTML = '<div class="gm">' + (nb ? '<span class="gry-new">Nowy rekord!</span>' : '<span class="gm-eye">' + medal + '</span>') + '<div class="gm-score">' + moves + '<small>ruchów</small></div><p class="gm-end">' + (nb ? medal + ' · ' : '') + 'Czas: ' + $('#uk-t').textContent + ' · poziom ' + N + '×' + N + (N === 4 ? ' (liczy się do rankingu)' : '') + '</p><div class="gm-acts"><button type="button" class="btn btn-primary" id="uk-again">Jeszcze raz</button>' + (art ? '<a class="btn" href="#/artykul/' + encodeURIComponent(art.id) + '">Czytaj artykuł</a>' : '') + '</div></div>';
