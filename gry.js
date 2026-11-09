@@ -92,7 +92,6 @@
       if (!tk) return legacy(g, score);                       // stary Worker bez /gry/finish – tymczasowy powrót do dawnych ścieżek
       return actorApi('/gry/finish', { method: 'POST', body: JSON.stringify({ game: g, score: score, tk: tk, tl: TLS[g] || undefined }) }).then(function (d) {
         delete TLS[g];
-        if (d && d.held) { /* wynik czeka na sprawdzenie */ toast('Świetny wynik! Czeka na sprawdzenie przez redakcję, zanim trafi do rankingu.'); }
         if (d && d.best != null) { if (acc) acc.best[g] = d.best; var b = $('#gry-best'); if (b) b.textContent = fmt(g, best(g)); }
         if (d && d.xp && d.xp.got && window.SnXP) SnXP.gained(d.xp);
       });
