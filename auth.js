@@ -9,11 +9,16 @@
   function claims(t) { try { return JSON.parse(decodeURIComponent(escape(atob(String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))))); } catch (e) { return null; } }
   function valid(t) { var c = claims(t); return !!(c && c.sub && c.exp * 1000 > Date.now()); }
   function err(code, msg) { var e = new Error(msg || code); e.code = code; e.error = code; return e; }
+  var CAPTCHA = { '/auth/login': 1, '/auth/register': 1, '/auth/reset-send': 1 };
   function call(path, body, tok) {
     var h = { 'content-type': 'application/json' }; if (tok) h.authorization = 'Bearer ' + tok;
-    return fetch(API + path, { method: body ? 'POST' : 'GET', headers: h, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
-      .catch(function () { throw err('auth/network-request-failed'); })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw err(d.error || 'auth/internal-error'); return d; }); });
+    var pre = body && CAPTCHA[path] && window.SliskaTS ? SliskaTS.token() : Promise.resolve('');
+    return pre.then(function (ts) {
+      if (ts) body.ts = ts;
+      return fetch(API + path, { method: body ? 'POST' : 'GET', headers: h, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
+        .catch(function () { throw err('auth/network-request-failed'); })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw err(d.error || 'auth/internal-error'); return d; }); });
+    });
   }
   function apply(u, t) {
     var c = claims(t) || {};

@@ -79,23 +79,145 @@
   }
   /* ---- ukończenie gry: JEDNO zgłoszenie do serwera (wynik + rekord + XP). Serwer sprawdza bilet startowy, czas i wiarygodność wyniku. ---- */
   var TICKETED = ['krople', 'flappy', 'waz', 'slizgawka', 'ukladanka', 'drama', 'naczelny', 'krzyzowka'];
-  var TK = {}, TLS = {}, lastFin = {};
+  var TK = {}, TLS = {}, RPS = {}, RUNS = {}, lastFin = {};
+  var REPLAY = { flappy: 1, waz: 1 };         // gry odtwarzane na serwerze z zapisu ruchów (ziarno losowania dostaje się razem z biletem)
+  /* ---- wspólna symulacja gier (ten sam kod liczy wynik na serwerze) ---- */
+/* Wspólna, deterministyczna symulacja Super Knagi (flappy) i Kangi (waz).
+   Ten sam kod działa w przeglądarce (rozgrywka) i w Workerze (sprawdzanie wyniku z zapisu ruchów). Zmiana tu = zmiana w obu miejscach. */
+var SliskaSim = (function () {
+  var DT = 1 / 60;
+  /* generator liczb pseudolosowych (mulberry32): to samo ziarno = ta sama rozgrywka */
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  /* sinus z samych dodawań i mnożeń (IEEE 754), żeby wynik był identyczny w każdej przeglądarce i w Workerze */
+  function sin(x) {
+    var TP = 6.283185307179586;
+    x = x - TP * Math.floor(x / TP + 0.5);
+    var x2 = x * x;
+    return x * (1 + x2 * (-1 / 6 + x2 * (1 / 120 + x2 * (-1 / 5040 + x2 * (1 / 362880 + x2 * (-1 / 39916800 + x2 * (1 / 6227020800)))))));
+  }
+
+  /* ---------- Super Knaga ---------- */
+  function flappy(seed, W, H) {
+    var R = rng(seed);
+    var s = { n: 0, t: 0, score: 0, dead: false, W: W, H: H, ev: [], pipes: [], B: { x: W * 0.3, y: H * 0.42, vy: -200, shield: false, inv: 0 } };
+    function crash() {
+      var B = s.B; if (B.inv > 0) return;
+      if (B.shield) { s.ev.push(['shieldsave']); B.shield = false; B.inv = 1.1; B.vy = -400; return; }
+      s.dead = true;
+    }
+    s.flap = function () { s.B.vy = -340; };
+    s.tick = function () {
+      if (s.dead) return;
+      var B = s.B, dt = DT, i, p;
+      s.n++; s.t = s.n * DT;
+      B.inv = Math.max(0, B.inv - dt); B.vy += 920 * dt; B.y += B.vy * dt;
+      var sp = 160 + Math.min(90, s.score * 3);
+      if (!s.pipes.length || s.pipes[s.pipes.length - 1].x < W - 240) {
+        var gp = Math.max(138, 190 - s.score * 2), tp = 70 + R() * (H - 140 - gp - 30);
+        var amp = s.score >= 12 ? 14 + R() * Math.min(34, s.score) : 0, ph = R() * 6, sh = !B.shield && R() < 0.1;
+        s.pipes.push({ x: W + 50, top: tp, base: tp, gp: gp, amp: amp, ph: ph, coin: true, sh: sh });
+      }
+      for (i = 0; i < s.pipes.length; i++) {
+        p = s.pipes[i];
+        p.x -= sp * dt;
+        if (p.amp) p.top = Math.max(50, Math.min(H - 46 - p.gp - 50, p.base + sin(s.t * 1.7 + p.ph) * p.amp));
+        if ((p.coin || p.sh) && Math.abs(p.x - B.x) < 32 && Math.abs(B.y - (p.top + p.gp / 2)) < 44) {
+          if (p.sh) { B.shield = true; s.ev.push(['shield']); } else { s.score += 2; s.ev.push(['drop']); }
+          s.ev.push(['burst', p.x, p.top + p.gp / 2, p.sh ? 1 : 0]);
+          p.coin = false; p.sh = false;
+        }
+        if (!p.pass && p.x + 30 < B.x) { p.pass = true; s.score += 1; s.ev.push(['pass']); }
+        if (B.x + 22 > p.x - 26 && B.x - 22 < p.x + 26 && (B.y - 24 < p.top || B.y + 24 > p.top + p.gp)) { crash(); if (s.dead) return; }
+      }
+      s.pipes = s.pipes.filter(function (q) { return q.x > -70; });
+      if (B.y > H - 46) { B.y = H - 46; crash(); } else if (B.y < -40) { B.y = -40; B.vy = 0; crash(); }
+    };
+    return s;
+  }
+
+  /* ---------- Kanga (wąż) ---------- */
+  var DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  function waz(seed) {
+    var R = rng(seed), N = 17;
+    var s = { n: 0, t: 0, score: 0, dead: false, N: N, ev: [], S: [[8, 8], [7, 8], [6, 8]], dir: [1, 0], nd: [1, 0], acc: 0, gold: null, slow: null, slowT: 0, combo: 0, comboT: 0, nextObs: 5, obst: [], food: null, comboMax: 0 };
+    function same(p, q) { return p[0] === q[0] && p[1] === q[1]; }
+    function free() {
+      var p;
+      do { p = [Math.floor(R() * N), Math.floor(R() * N)]; }
+      while (s.S.some(function (q) { return same(p, q); }) || (s.food && same(p, s.food)) || s.obst.some(function (q) { return same(p, q); }) || (s.gold && same(p, s.gold.p)) || (s.slow && same(p, s.slow.p)));
+      return p;
+    }
+    function addObs() { for (var i = 0; i < 40; i++) { var p = free(); if (Math.abs(p[0] - s.S[0][0]) + Math.abs(p[1] - s.S[0][1]) > 4) { s.obst.push(p); return; } } }
+    s.food = free();
+    s.turn = function (k) { var m = DIRS[k]; if (m && !(m[0] === -s.dir[0] && m[1] === -s.dir[1])) s.nd = m; };
+    s.tick = function () {
+      if (s.dead) return;
+      var dt = DT; s.n++; s.t = s.n * DT;
+      if (s.gold) { s.gold.t -= dt; if (s.gold.t <= 0) s.gold = null; }
+      if (s.slow) { s.slow.t -= dt; if (s.slow.t <= 0) s.slow = null; }
+      if (s.slowT > 0) s.slowT -= dt;
+      if (s.comboT > 0) s.comboT -= dt;
+      s.acc += dt;
+      var stepT = Math.max(0.065, 0.15 - s.score * 0.0025) * (s.slowT > 0 ? 1.7 : 1);
+      if (s.acc < stepT) return;
+      s.acc = 0; s.dir = s.nd;
+      var h = [s.S[0][0] + s.dir[0], s.S[0][1] + s.dir[1]];
+      if (h[0] < 0 || h[1] < 0 || h[0] >= N || h[1] >= N || s.S.some(function (p) { return same(p, h); }) || s.obst.some(function (o) { return same(o, h); })) { s.dead = true; return; }
+      s.S.unshift(h);
+      if (s.gold && same(h, s.gold.p)) {
+        s.ev.push(['gold', h[0], h[1]]); s.score += 3; s.gold = null; s.S.push(s.S[s.S.length - 1]); s.S.push(s.S[s.S.length - 1]);
+      } else if (same(h, s.food)) {
+        s.combo = s.comboT > 0 ? s.combo + 1 : 1; if (s.combo > s.comboMax) s.comboMax = s.combo; s.comboT = 2.6;
+        var add = Math.min(4, s.combo); s.score += add; s.ev.push(['mic', h[0], h[1], add]);
+        s.food = free();
+        if (!s.gold && R() < 0.18) s.gold = { p: free(), t: 6 };
+        else if (!s.slow && R() < 0.14) s.slow = { p: free(), t: 9 };
+        if (s.score >= s.nextObs && s.obst.length < 9) { s.nextObs += 5; addObs(); s.ev.push(['obs']); }
+      } else if (s.slow && same(h, s.slow.p)) {
+        s.ev.push(['slow', h[0], h[1]]); s.slowT = 6; s.slow = null; s.score += 1; s.S.pop();
+      } else s.S.pop();
+    };
+    return s;
+  }
+
+  /* Odtworzenie całej rozgrywki z zapisu ruchów: zwraca { score, ticks, dead }.
+     flappy: inp = numery kroków, w których gracz machnął peleryną; waz: inp = krok * 4 + kierunek (0 góra, 1 dół, 2 lewo, 3 prawo). */
+  function replay(game, seed, dims, inp, ticks) {
+    var s = game === 'flappy' ? flappy(seed, dims.w, dims.h) : waz(seed), j = 0;
+    for (var n = 0; n < ticks && !s.dead; n++) {
+      if (game === 'flappy') { while (j < inp.length && inp[j] <= n) { if (inp[j] === n) s.flap(); j++; } }
+      else { while (j < inp.length && Math.floor(inp[j] / 4) <= n) { if (Math.floor(inp[j] / 4) === n) s.turn(inp[j] % 4); j++; } }
+      s.tick(); s.ev.length = 0;
+    }
+    return { score: s.score, ticks: s.n, dead: s.dead };
+  }
+  return { DT: DT, rng: rng, sin: sin, flappy: flappy, waz: waz, replay: replay };
+})();
+
+  function mintRun(g) {
+    if (!logged() || !window.actorApi) return Promise.resolve(null);
+    return actorApi('/gry/start', { method: 'POST', body: JSON.stringify({ game: g }) }).then(function (d) { return d && d.tk && d.seed != null ? { tk: d.tk, seed: d.seed >>> 0 } : null; }).catch(function () { return null; });
+  }
   function mint(g) {
-    if (!logged() || !window.actorApi || TICKETED.indexOf(g) < 0) return Promise.resolve(null);
+    if (!logged() || !window.actorApi || TICKETED.indexOf(g) < 0 || REPLAY[g]) return Promise.resolve(null);
     return (TK[g] = actorApi('/gry/start', { method: 'POST', body: JSON.stringify({ game: g }) }).then(function (d) { return d && d.tk || null; }).catch(function () { return null; }));
   }
   function finish(g, score) {
     if (!logged() || !window.actorApi) return;
     lastFin[g] = Date.now();
-    var p = TK[g] || mint(g); delete TK[g];
+    var run = RUNS[g], rp = RPS[g]; delete RUNS[g]; delete RPS[g];
+    var p = REPLAY[g] ? Promise.resolve(run && rp ? run.tk : null) : (TK[g] || mint(g)); delete TK[g];
     p.then(function (tk) {
       if (!tk) return null;
-      return actorApi('/gry/finish', { method: 'POST', body: JSON.stringify({ game: g, score: score, tk: tk, tl: TLS[g] || undefined }) }).then(function (d) {
+      return actorApi('/gry/finish', { method: 'POST', body: JSON.stringify({ game: g, score: score, tk: tk, tl: TLS[g] || undefined, rp: rp || undefined }) }).then(function (d) {
         delete TLS[g];
         if (d && d.best != null) { if (acc) acc.best[g] = d.best; var b = $('#gry-best'); if (b) b.textContent = fmt(g, best(g)); }
         if (d && d.xp && d.xp.got && window.SnXP) SnXP.gained(d.xp);
       });
-    }).catch(function () {}).then(function () { mint(g); });
+    }).catch(function () {}).then(function () { if (!REPLAY[g]) mint(g); });
   }
   function accLoad() {
     if (!logged() || !window.actorApi) { acc = null; return Promise.resolve(null); }
@@ -321,10 +443,11 @@
     shell(el, g, '<div class="gry-stage" style="' + (opts.ratio ? 'aspect-ratio:' + opts.ratio : '') + '"><canvas id="gry-cv" tabindex="0" aria-label="' + g.name + '"></canvas>' +
       '<div class="gry-hud"><span class="hud-p"><small>Wynik</small><b id="gry-score">0</b></span>' + (opts.lives ? '<span class="hud-p"><small>Życia</small><b id="gry-lives"></b></span>' : '') +
       '<button type="button" class="hud-btn" id="gry-pause" aria-label="Pauza">' + ICO.pause + '</button></div><div class="gry-over" id="gry-over"></div></div>');
-    var cv = $('#gry-cv'), ctx = cv.getContext('2d'), W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2), raf = 0, last = 0, running = false, paused = false, over = false;
+    var cv = $('#gry-cv'), ctx = cv.getContext('2d'), W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2), raf = 0, last = 0, running = false, paused = false, over = false, starting = false;
     function size() { var r = cv.parentNode.getBoundingClientRect(); W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px'; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (!running && api.ready) { opts.draw(api); } }
     var fx = [];
     var api = {
+      ev: function () {}, mx: function () {},
       ctx: ctx, get W() { return W; }, get H() { return H; }, score: 0, t: 0,
       setScore: function (v) { api.score = v; $('#gry-score').textContent = v; var ms = Math.round(api.t * 1000); if (api.tl && (api.tl.length === 0 || ms - api._ls >= 400)) { api.tl.push([ms, v]); api._ls = ms; } },
       setLives: function (n) { var l = $('#gry-lives'); if (l) l.textContent = n > 0 ? '💧'.repeat(n) : '—'; },
@@ -332,7 +455,7 @@
       pop: function (x, y, text, col) { fx.push({ x: x, y: y, vx: 0, vy: -50, life: .9, text: text, c: col || '#fff' }); },
       over: function () {
         if (over) return; over = true; running = false; cancelAnimationFrame(raf);
-        var sc = api.score; if (api.tl) { api.tl.push([Math.round(api.t * 1000), sc]); TLS[g.id] = api.tl; } var nb = sc > 0 && submit(g.id, sc);
+        var sc = api.score; if (api.tl) { api.tl.push([Math.round(api.t * 1000), sc]); TLS[g.id] = opts.replay ? undefined : api.tl; } var nb = sc > 0 && submit(g.id, sc, false, !!opts.replay && !RUNS[g.id]);
         played(g.id);
         var et = opts.endText ? opts.endText(sc) : ['', g.knaga];
         menu('<span class="gm-eye">Koniec gry</span><div class="gm-k">' + K(et[1] || g.knaga, 'gk') + '</div><p class="gm-end">' + et[0] + '</p><div class="gm-score">' + sc + '<small>' + (g.unit || '') + '</small></div>' +
@@ -348,7 +471,13 @@
       $('#gry-go').onclick = paused ? resume : start; $('#gry-go').focus({ preventScroll: true });
       var sh = $('#gry-share'); if (sh) sh.onclick = function () { share(g.name + ' na Śliskiej: ' + api.score + ' ' + (g.unit || '') + ' 💦 Pobijesz?\n' + LINK + '/' + g.id); };
     }
-    function start() { mint(g.id); $('#gry-over').hidden = true; over = false; paused = false; fx = []; api.t = 0; api.tl = []; api._ls = -1; api.setScore(0); opts.reset(api); running = true; last = performance.now(); raf = requestAnimationFrame(loop); try { cv.focus({ preventScroll: true }); } catch (e) { /* - */ } }
+    function start() {
+      if (!opts.replay) return begin();
+      if (starting) return; starting = true;
+      var fin = function (run) { if (!starting) return; starting = false; RUNS[g.id] = run; api.seed = run ? run.seed : (Math.random() * 4294967296) >>> 0; begin(); };
+      mintRun(g.id).then(fin); setTimeout(function () { fin(null); }, 3500);
+    }
+    function begin() { mint(g.id); $('#gry-over').hidden = true; over = false; paused = false; fx = []; api.t = 0; api.tl = []; api._ls = -1; api.setScore(0); opts.reset(api); running = true; last = performance.now(); raf = requestAnimationFrame(loop); try { cv.focus({ preventScroll: true }); } catch (e) { /* - */ } }
     function pause() { if (!running || over) return; running = false; paused = true; cancelAnimationFrame(raf); menu('<span class="gm-eye">Pauza</span><div class="gm-k">' + K('szlafrok', 'gk') + '</div><p class="gm-end">Knaga czeka. Wynik: <b>' + api.score + '</b></p>', 'Wznów'); }
     function resume() { $('#gry-over').hidden = true; paused = false; running = true; last = performance.now(); raf = requestAnimationFrame(loop); }
     function loop(t) {
@@ -478,34 +607,44 @@
 
   /* ============== KNAGA FLAPPY ============== */
   function flappy(el) {
-    function crash(a) { if (B.inv > 0) return; if (B.shield) { B.shield = false; B.inv = 1.1; B.vy = -400; a.pop(B.x, B.y - 44, 'Tarcza pękła', '#ffcf4a'); a.burst(B.x, B.y, '#ffcf4a', 18); return; } a.over(); }
     var PAL = [['#120a2a', '#4b1450', '#b3123a'], ['#04122b', '#0b3a6b', '#1fb5c9'], ['#2a0a1a', '#a03a2f', '#ffb34a']];
-    var img = knagaImg('super'), B, pipes, trail = [], city = [[], []];
+    var img = knagaImg('super'), B, pipes, trail = [], city = [[], []], SIM, inp = [], acc = 0;
     for (var L = 0; L < 2; L++) { var x = 0; while (x < 2400) { var w = 40 + Math.random() * 70; city[L].push({ x: x, w: w, h: (L ? 70 : 120) + Math.random() * (L ? 90 : 150), seed: Math.random() }); x += w + (L ? 6 : 10); } }
     canvasGame(el, G('flappy'), {
+      replay: true,
       intro: 'Super Knaga leci nad sceną. Machaj peleryną i przelatuj między statywami. Zbieraj krople (+2) i złotą tarczę, która wybacza jedno uderzenie. Od 12 punktów statywy się ruszają, a co 15 punktów zmienia się scena.',
       keys: [['Spacja', 'w górę'], ['klik / stuknięcie', 'w górę'], ['Esc', 'pauza']],
       endText: function (s) { return s >= 30 ? ['Super Knaga to Ty! Scena należy do Ciebie.', 'super'] : s >= 12 ? ['Lata całkiem sprawnie. Prawie gwiazda.', 'gwiazdor'] : s >= 4 ? ['Krótki lot, ale z klasą.', 'ziomek'] : ['Knaga opadła.', 'niesmiala']; },
       init: function (a, cv) {
-        var flap = function (e) { if (e.type === 'keydown') { if (e.code !== 'Space' && e.key !== 'ArrowUp') return; e.preventDefault(); } if (B && $('#gry-over').hidden) { B.vy = -340; a.burst(B.x - 20, B.y + 10, '#ffcf4a', 4); } };
+        var flap = function (e) { if (e.type === 'keydown') { if (e.code !== 'Space' && e.key !== 'ArrowUp') return; e.preventDefault(); } if (SIM && !SIM.dead && $('#gry-over').hidden) { inp.push(SIM.n); SIM.flap(); a.burst(SIM.B.x - 20, SIM.B.y + 10, '#ffcf4a', 4); } };
         cv.addEventListener('pointerdown', flap); document.addEventListener('keydown', flap);
         stopFns.push(function () { document.removeEventListener('keydown', flap); });
       },
-      reset: function (a) { B = { x: a.W * .3, y: a.H * .42, vy: -200, shield: false, inv: 0 }; pipes = []; trail = []; },
+      reset: function (a) { SIM = SliskaSim.flappy(a.seed, Math.max(300, Math.min(1400, Math.round(a.W))), Math.max(340, Math.min(1100, Math.round(a.H)))); inp = []; acc = 0; B = SIM.B; pipes = SIM.pipes; trail = []; },
       step: function (a, dt) {
-        B.inv = Math.max(0, B.inv - dt); B.vy += 920 * dt; B.y += B.vy * dt;
-        var sp = 160 + Math.min(90, a.score * 3);
-        if (!pipes.length || pipes[pipes.length - 1].x < a.W - 240) { var gp = Math.max(138, 190 - a.score * 2); var tp = 70 + Math.random() * (a.H - 140 - gp - 30); pipes.push({ x: a.W + 50, top: tp, base: tp, gp: gp, amp: a.score >= 12 ? 14 + Math.random() * Math.min(34, a.score) : 0, ph: Math.random() * 6, coin: true, sh: !B.shield && Math.random() < .1 }); }
-        pipes.forEach(function (p) {
-          p.x -= sp * dt;
-          if (p.amp) p.top = Math.max(50, Math.min(a.H - 46 - p.gp - 50, p.base + Math.sin(a.t * 1.7 + p.ph) * p.amp));
-          if ((p.coin || p.sh) && Math.abs(p.x - B.x) < 32 && Math.abs(B.y - (p.top + p.gp / 2)) < 44) { if (p.sh) { B.shield = true; a.pop(B.x, B.y - 44, 'Tarcza!', '#ffcf4a'); } else { a.setScore(a.score + 2); a.pop(B.x, B.y - 44, '+2', '#5cc8ff'); } a.burst(p.x, p.top + p.gp / 2, p.sh ? '#ffcf4a' : '#5cc8ff', 10); p.coin = false; p.sh = false; }
-          if (!p.pass && p.x + 30 < B.x) { p.pass = true; a.setScore(a.score + 1); a.pop(B.x, B.y - 40, '+1', '#ffcf4a'); if (a.score === 10 || a.score === 25 || a.score === 50) a.pop(a.W / 2, 130, a.score === 10 ? 'BRĄZ' : a.score === 25 ? 'SREBRO' : 'ZŁOTO', a.score === 10 ? '#d19a66' : a.score === 25 ? '#dbe2ea' : '#ffcf4a'); }
-          if (B.x + 22 > p.x - 26 && B.x - 22 < p.x + 26 && (B.y - 24 < p.top || B.y + 24 > p.top + p.gp)) crash(a);
-        });
-        pipes = pipes.filter(function (p) { return p.x > -70; });
-        trail.push({ x: B.x - 26, y: B.y + 6, l: .5 }); trail.forEach(function (q) { q.x -= sp * dt; q.l -= dt; }); trail = trail.filter(function (q) { return q.l > 0; });
-        if (B.y > a.H - 46) { B.y = a.H - 46; crash(a); } else if (B.y < -40) { B.y = -40; B.vy = 0; crash(a); }
+        acc += dt; var n = 0, DT = SliskaSim.DT;
+        while (acc >= DT && n++ < 6 && !SIM.dead) {
+          acc -= DT; var before = SIM.score; SIM.tick();
+          if (SIM.score !== before) a.setScore(SIM.score);
+          var b = SIM.B;
+          SIM.ev.forEach(function (e) {
+            if (e[0] === 'shieldsave') { a.ev('shieldsave'); a.pop(b.x, b.y - 44, 'Tarcza pękła', '#ffcf4a'); a.burst(b.x, b.y, '#ffcf4a', 18); }
+            else if (e[0] === 'shield') { a.ev('shield'); a.pop(b.x, b.y - 44, 'Tarcza!', '#ffcf4a'); }
+            else if (e[0] === 'drop') { a.ev('drop'); a.pop(b.x, b.y - 44, '+2', '#5cc8ff'); }
+            else if (e[0] === 'burst') a.burst(e[1], e[2], e[3] ? '#ffcf4a' : '#5cc8ff', 10);
+            else if (e[0] === 'pass') {
+              a.pop(b.x, b.y - 40, '+1', '#ffcf4a');
+              [[10, 'BRĄZ', '#d19a66'], [25, 'SREBRO', '#dbe2ea'], [50, 'ZŁOTO', '#ffcf4a']].forEach(function (m) { if (before < m[0] && SIM.score >= m[0]) a.pop(a.W / 2, 130, m[1], m[2]); });
+            }
+          });
+          SIM.ev.length = 0;
+          var sp = 160 + Math.min(90, SIM.score * 3);
+          trail.forEach(function (q) { q.x -= sp * DT; q.l -= DT; });
+          trail.push({ x: b.x - 26, y: b.y + 6, l: .5 });
+        }
+        trail = trail.filter(function (q) { return q.l > 0; });
+        B = SIM.B; pipes = SIM.pipes;
+        if (SIM.dead) { RPS.flappy = { i: inp, n: SIM.n, w: SIM.W, h: SIM.H }; a.over(); }
       },
       draw: function (a) {
         var c = a.ctx, W = a.W, H = a.H, t = a.t, gr = c.createLinearGradient(0, 0, 0, H);
@@ -545,33 +684,43 @@
 
   /* ============== ŚLISKI WĄŻ ============== */
   function waz(el) {
-    var head = knagaImg('ikona'), S, dir, nd, food, gold, acc2, N = 17, obst = [], slow = null, slowT = 0, combo = 0, comboT = 0, nextObs = 5;
+    var head = knagaImg('ikona'), S, dir, nd, food, gold, N = 17, obst = [], slow = null, slowT = 0, combo = 0, comboT = 0, SIM, inp = [], acc = 0;
+    var DIRS4 = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    function sync() { S = SIM.S; dir = SIM.dir; nd = SIM.nd; food = SIM.food; gold = SIM.gold; obst = SIM.obst; slow = SIM.slow; slowT = SIM.slowT; combo = SIM.combo; comboT = SIM.comboT; }
     canvasGame(el, G('waz'), {
+      replay: true,
       ratio: '1 / 1', intro: 'Prowadź węża z głową Knagi po scenie. Zbieraj mikrofony szybko jeden po drugim, a zrobisz combo (do +4). Złoty mikrofon to 3 punkty, zegar zwalnia czas. Uważaj: co 5 punktów na scenie pojawia się nowa kolumna głośnikowa.',
       keys: [['↑ ↓ ← →', 'kierunek'], ['WASD', 'też działa'], ['przesuń palcem', 'telefon']],
       endText: function (s) { return s >= 40 ? ['Wąż długi jak lista featów. Szacun!', 'gwiazdor'] : s >= 15 ? ['Ładnie urósł. Prawie gwiazda sceny.', 'ziomek'] : ['Knaga się zaplątała.', 'wsciekla']; },
       init: function (a, cv) {
-        var map = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0], W: [0, -1], S: [0, 1], A: [-1, 0], D: [1, 0] };
-        var kd = function (e) { var m = map[e.key]; if (m && !(m[0] === -dir[0] && m[1] === -dir[1])) { nd = m; e.preventDefault(); } };
+        var K4 = { ArrowUp: 0, ArrowDown: 1, ArrowLeft: 2, ArrowRight: 3, w: 0, s: 1, a: 2, d: 3, W: 0, S: 1, A: 2, D: 3 };
+        var turn = function (k) { var m = DIRS4[k]; if (!SIM || SIM.dead || !m || (m[0] === -SIM.dir[0] && m[1] === -SIM.dir[1])) return false; inp.push(SIM.n * 4 + k); SIM.turn(k); return true; };
+        var kd = function (e) { var k = K4[e.key]; if (k !== undefined && turn(k)) e.preventDefault(); };
         document.addEventListener('keydown', kd);
         var sx, sy; cv.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
         cv.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
-        cv.addEventListener('touchend', function (e) { var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return; var m = Math.abs(dx) > Math.abs(dy) ? [dx > 0 ? 1 : -1, 0] : [0, dy > 0 ? 1 : -1]; if (!(m[0] === -dir[0] && m[1] === -dir[1])) nd = m; });
+        cv.addEventListener('touchend', function (e) { var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return; turn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 2) : (dy > 0 ? 1 : 0)); });
         stopFns.push(function () { document.removeEventListener('keydown', kd); });
       },
-      reset: function (a) { S = [[8, 8], [7, 8], [6, 8]]; dir = [1, 0]; nd = dir; acc2 = 0; gold = null; obst = []; slow = null; slowT = 0; combo = 0; comboT = 0; nextObs = 5; place(); },
+      reset: function (a) { SIM = SliskaSim.waz(a.seed); inp = []; acc = 0; sync(); },
       step: function (a, dt) {
-        if (gold) { gold.t -= dt; if (gold.t <= 0) gold = null; }
-        if (slow) { slow.t -= dt; if (slow.t <= 0) slow = null; } if (slowT > 0) slowT -= dt; if (comboT > 0) comboT -= dt;
-        acc2 += dt; var stepT = Math.max(.065, .15 - a.score * .0025) * (slowT > 0 ? 1.7 : 1); if (acc2 < stepT) return; acc2 = 0; dir = nd;
-        var h = [S[0][0] + dir[0], S[0][1] + dir[1]];
-        if (h[0] < 0 || h[1] < 0 || h[0] >= N || h[1] >= N || S.some(function (p) { return p[0] === h[0] && p[1] === h[1]; }) || obst.some(function (o) { return o[0] === h[0] && o[1] === h[1]; })) return a.over();
-        S.unshift(h);
-        var g2 = geo(a), px = function (p) { return [g2.ox + p[0] * g2.sz + g2.sz / 2, g2.oy + p[1] * g2.sz + g2.sz / 2]; };
-        if (gold && h[0] === gold.p[0] && h[1] === gold.p[1]) { a.setScore(a.score + 3); var q = px(h); a.burst(q[0], q[1], '#ffcf4a', 14); a.pop(q[0], q[1] - 20, '+3', '#ffcf4a'); gold = null; S.push(S[S.length - 1]); S.push(S[S.length - 1]); }
-        else if (h[0] === food[0] && h[1] === food[1]) { combo = comboT > 0 ? combo + 1 : 1; comboT = 2.6; var add = Math.min(4, combo); a.setScore(a.score + add); var q2 = px(h); a.burst(q2[0], q2[1], '#ff2d77', 10); a.pop(q2[0], q2[1] - 20, '+' + add, add > 1 ? '#ffcf4a' : '#fff'); place(); if (!gold && Math.random() < .18) placeGold(); else if (!slow && Math.random() < .14) slow = { p: free(), t: 9 }; if (a.score >= nextObs && obst.length < 9) { nextObs += 5; addObs(); a.pop(a.W / 2, 60, 'Nowa kolumna głośnikowa!', '#ff8fb0'); } }
-        else if (slow && h[0] === slow.p[0] && h[1] === slow.p[1]) { slowT = 6; slow = null; a.setScore(a.score + 1); var q3 = px(h); a.pop(q3[0], q3[1] - 20, 'Zwolnienie!', '#5eead4'); a.burst(q3[0], q3[1], '#14b8a6', 10); S.pop(); }
-        else S.pop();
+        acc += dt; var n = 0, DT = SliskaSim.DT;
+        while (acc >= DT && n++ < 6 && !SIM.dead) {
+          acc -= DT; var before = SIM.score; SIM.tick();
+          if (SIM.score !== before) a.setScore(SIM.score);
+          var g2 = geo(a), px = function (e) { return [g2.ox + e[1] * g2.sz + g2.sz / 2, g2.oy + e[2] * g2.sz + g2.sz / 2]; };
+          SIM.ev.forEach(function (e) {
+            var q = e[0] === 'obs' ? null : px(e);
+            if (e[0] === 'gold') { a.ev('gold'); a.burst(q[0], q[1], '#ffcf4a', 14); a.pop(q[0], q[1] - 20, '+3', '#ffcf4a'); }
+            else if (e[0] === 'mic') { a.ev('mic'); a.mx('combo', SIM.combo); a.burst(q[0], q[1], '#ff2d77', 10); a.pop(q[0], q[1] - 20, '+' + e[3], e[3] > 1 ? '#ffcf4a' : '#fff'); }
+            else if (e[0] === 'slow') { a.ev('slow'); a.pop(q[0], q[1] - 20, 'Zwolnienie!', '#5eead4'); a.burst(q[0], q[1], '#14b8a6', 10); }
+            else if (e[0] === 'obs') a.pop(a.W / 2, 60, 'Nowa kolumna głośnikowa!', '#ff8fb0');
+          });
+          SIM.ev.length = 0;
+          a.mx('len', SIM.S.length); a.mx('obs', SIM.obst.length);
+        }
+        sync();
+        if (SIM.dead) { RPS.waz = { i: inp, n: SIM.n }; a.over(); }
       },
       draw: function (a) {
         var c = a.ctx, t = a.t, g2 = geo(a), sz = g2.sz, ox = g2.ox, oy = g2.oy;
@@ -599,10 +748,6 @@
       c.fillStyle = gl ? '#ffcf4a' : '#9ca3af'; c.beginPath(); c.arc(0, -s * .12, s * .26, 0, 7); c.fill(); c.shadowBlur = 0; c.stroke();
       c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 1; c.beginPath(); c.moveTo(-s * .2, -s * .12); c.lineTo(s * .2, -s * .12); c.moveTo(0, -s * .34); c.lineTo(0, s * .1); c.stroke(); c.restore();
     }
-    function free() { var p; do { p = [Math.floor(Math.random() * N), Math.floor(Math.random() * N)]; } while (S.some(function (q) { return q[0] === p[0] && q[1] === p[1]; }) || (food && p[0] === food[0] && p[1] === food[1]) || obst.some(function (q) { return q[0] === p[0] && q[1] === p[1]; }) || (gold && p[0] === gold.p[0] && p[1] === gold.p[1]) || (slow && p[0] === slow.p[0] && p[1] === slow.p[1])); return p; }
-    function addObs() { for (var i = 0; i < 40; i++) { var p = free(); if (Math.abs(p[0] - S[0][0]) + Math.abs(p[1] - S[0][1]) > 4) { obst.push(p); return; } } }
-    function place() { food = null; food = free(); }
-    function placeGold() { gold = { p: free(), t: 6 }; }
   }
 
   /* ============== ŚLIZGAWKA (sekret) ============== */

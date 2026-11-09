@@ -651,7 +651,11 @@ async function actorAuth() {
   } catch { /* brak tokenu – działamy anonimowo */ }
   return {};
 }
+const CAPTCHA_PATHS = ['/comments', '/gry/finish'];       // nowy komentarz i zgłoszenie wyniku gry wymagają tokenu Turnstile
 async function actorApi(path, opts = {}) {
+  if (opts.method === 'POST' && CAPTCHA_PATHS.includes(path) && window.SliskaTS) {
+    try { const ts = await SliskaTS.token(); if (ts) opts = { ...opts, body: JSON.stringify({ ...JSON.parse(opts.body || '{}'), ts }) }; } catch { /* bez tokenu serwer sam zdecyduje */ }
+  }
   const r = await fetch(CONFIG.API_BASE + path, { ...opts, headers: { 'content-type': 'application/json', ...(await actorAuth()), ...(opts.headers || {}) }, cache: 'no-store' });
   let d = {}; try { d = await r.json(); } catch { /* ignoruj */ }
   if (!r.ok) { if (d.error === 'session_revoked' || d.error === 'session_expired') { try { Readers.auth && Readers.auth.signOut(); } catch { /* ignoruj */ } } const e = new Error(d.error || 'http'); e.error = d.error || 'http'; e.data = d; throw e; }
@@ -3140,7 +3144,7 @@ const READER_ERR = {
   readers_off: 'Komentarze są chwilowo niedostępne.', 'auth/email-already-in-use': 'Ten adres e-mail ma już konto. Zaloguj się.',
   'auth/weak-password': 'Hasło musi mieć co najmniej 6 znaków.', 'auth/invalid-email': 'Nieprawidłowy adres e-mail.',
   'auth/invalid-credential': 'Nieprawidłowy e-mail lub hasło.', 'auth/wrong-password': 'Nieprawidłowy e-mail lub hasło.', 'auth/user-not-found': 'Nieprawidłowy e-mail lub hasło.',
-  'auth/too-many-requests': 'Zbyt wiele prób. Spróbuj za kilka minut.', 'auth/network-request-failed': 'Brak połączenia z internetem.',
+  'auth/too-many-requests': 'Zbyt wiele prób. Odczekaj chwilę (nawet godzinę) i spróbuj ponownie.', 'captcha': 'Nie udało się potwierdzić, że jesteś człowiekiem. Odśwież stronę i spróbuj ponownie.', 'auth/network-request-failed': 'Brak połączenia z internetem.',
   'auth/missing-password': 'Wpisz hasło.', 'auth/operation-not-allowed': 'Logowanie e-mailem nie jest włączone w projekcie czytelników.'
 };
 const readerErr = e => {
