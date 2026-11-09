@@ -989,16 +989,16 @@ var SliskaSim = (function () {
   }
   function krzArchive(el, ctx) {
     var g = G('krzyzowka'), arts = (ctx && ctx.articles) || []; if (!arts.length && typeof state !== 'undefined') arts = state.articles || [];
-    var cur = weekIndex(), from = Math.max(-3, cur - 12), cards = '';
+    var cur = weekIndex(), from = Math.max(1, cur - 12), cards = '';
     for (var w = cur - 1; w >= from; w--) {
       var set = krzSetFor(w, arts), done = !!lsGet('sn-krzyz-done-' + w), st = lsGet('sn-krzyz-' + w + '-' + set.h), part = !done && st && st.v && Object.keys(st.v).some(function (k) { return /\S/.test(st.v[k] || ''); });
       cards += '<a class="kza' + (done ? ' is-done' : '') + '" href="#/gry/krzyzowka-arch-' + wid(w) + '"><span class="kza-n">' + (w < 0 ? '★' : '#' + w) + '</span><span><b>' + wname(w) + '</b><small>' + weekRange(w) + ' · ' + set.r.length + ' wyrazów</small></span><em>' + (done ? aIcon('check', 14) + ' Rozwiązana' : part ? 'W trakcie' : 'Nowa') + '</em></a>';
     }
-    shell(el, g, '<div class="kz-paper kza-wrap"><div class="kz-head"><div><span class="gm-eye">Archiwum</span><p>Krzyżówki z poprzednich tygodni. Rozwiązania z archiwum nie dają XP i nie liczą się do rekordu, ale możesz grać bez końca.</p></div><a class="btn btn-sm" href="#/gry/krzyzowka">Bieżąca krzyżówka</a></div><div class="kza-list">' + (cards || '<p class="gp-empty">Pierwsze krzyżówki trafią tu po najbliższym poniedziałku.</p>') + '</div></div>', { tag: 'Archiwum', noTop: true });
+    shell(el, g, '<div class="kz-paper kza-wrap"><div class="kz-head"><div><span class="gm-eye">Archiwum</span><p>Krzyżówki z poprzednich tygodni. Rozwiązania z archiwum nie dają XP i nie liczą się do rekordu, ale możesz grać bez końca.</p></div><a class="btn btn-sm" href="#/gry/krzyzowka">Bieżąca krzyżówka</a></div><div class="kza-list">' + ((cards || '<p class="gp-empty">Archiwum jest jeszcze puste – pierwsze krzyżówki pojawią się tu po zakończeniu tygodnia.</p>') || '<p class="gp-empty">Pierwsze krzyżówki trafią tu po najbliższym poniedziałku.</p>') + '</div></div>', { tag: 'Archiwum', noTop: true });
   }
   function krzArchPlay(el, w, ctx) {
     var g = G('krzyzowka'), arts = (ctx && ctx.articles) || []; if (!arts.length && typeof state !== 'undefined') arts = state.articles || [];
-    if (w >= weekIndex() || w < -3) { location.hash = '#/gry/krzyzowka-arch'; return; }
+    if (w >= weekIndex() || w < 1) { location.hash = '#/gry/krzyzowka-arch'; return; }
     shell(el, g, '<div class="kz"></div>', { tag: 'Archiwum · ' + (w < 0 ? 'zestaw startowy ' + (-w) : 'tydzień #' + w), noTop: true });
     krzRun(krzSetFor(w, arts), 'Archiwum, ' + weekRange(w), w, true);
   }
