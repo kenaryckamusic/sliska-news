@@ -1,5 +1,5 @@
 /* Śliska – własne logowanie (etap 3). Obiekt zgodny z Firebase Auth (signInWithEmailAndPassword, onAuthStateChanged,
- * currentUser.getIdToken()…), ale konta i sesje są w API Śliskiej (Worker → Neon). Sesja: token w localStorage, 24 h. */
+ * currentUser.getIdToken()…), ale konta i sesje są w API Śliskiej (Worker → Neon). Sesja: token w localStorage, odnawiany przy użyciu (do roku). */
 (function () {
   'use strict';
   if (window.SliskaAuth) return;
@@ -48,6 +48,10 @@
   try { var saved = localStorage.getItem(KEY); if (saved && valid(saved)) cur = makeUser(saved); else if (saved) store(null); } catch (e) { /* ignoruj */ }
   window.addEventListener('storage', function (e) { if (e.key !== KEY) return; var t = e.newValue; if (t && valid(t)) { if (!cur || claims(t).sub !== cur.uid) { cur = makeUser(t); emit(); } else apply(cur, t); } else if (cur) { cur = null; emit(); } });
   setInterval(function () { if (cur && !valid(cur._t)) { cur = null; store(null); emit(); } }, 60000);
+  /* Sesja odnawia się sama: przy otwarciu strony i co kilka godzin prosimy serwer o świeży token (ważny kolejne dni), więc aktywny użytkownik nie jest wylogowywany. */
+  function slide() { if (cur && valid(cur._t)) call('/auth/refresh', {}, cur._t).then(function (d) { if (d && d.token && valid(d.token) && cur && claims(d.token).sub === cur.uid) { apply(cur, d.token); store(d.token); } }).catch(function () { /* brak sieci – spróbujemy później */ }); }
+  setTimeout(slide, 2500); setInterval(slide, 6 * 3600e3);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && cur) slide(); });
 
   /* Google: na komputerze okienko (popup), na telefonie i w zainstalowanej aplikacji – przekierowanie całej strony
    * (w aplikacji PWA na iPhonie okienko traci połączenie ze stroną i logowanie by się nie kończyło). */

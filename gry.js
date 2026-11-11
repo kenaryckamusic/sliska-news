@@ -422,7 +422,7 @@ var SliskaSim = (function () {
       .then(function (r) { return r.json().then(function (d) { if (!r.ok) { var e = new Error(d.error || 'http'); e.status = r.status; throw e; } return d; }); });
   }
   function slizgle(el) {
-    shell(el, G('slizgle'), '<div class="sz"><p class="sz-load">Ładowanie słowa dnia…</p></div>', { tag: 'Słowo dnia #' + (dayIndex() + 1), side: '<section class="gp-box" id="sz-stats-box"></section>' });
+    shell(el, G('slizgle'), '<div class="sz"><p class="sz-load">Ładowanie słowa dnia…</p></div>', { tag: 'Słowo dnia #' + (dayIndex() + 1), side: '<section class="gp-box" id="sz-stats-box"></section>' + achBox('slizgle') });
     cfg().then(function (c) {
       if (!$('.gp[data-game="slizgle"]')) return;
       var sl = (c && c.slizgle) || {}, len = sl.len || (sl.word || '').length;
@@ -482,6 +482,7 @@ var SliskaSim = (function () {
       stats.played++;
       if (win) { stats.wins++; stats.dist[st.rows.length - 1]++; stats.streak = stats.last === di - 1 ? stats.streak + 1 : 1; stats.max = Math.max(stats.max, stats.streak); } else stats.streak = 0;
       stats.last = win ? di : -9; lsSet('sn-slizgle-stats', stats); lsSet('sn-slizgle-done-' + di, { win: win, ans: win ? st.rows[st.rows.length - 1] : st.ans });
+      achEval('slizgle', { win: win, tries: st.rows.length, streak: stats.streak, wins: stats.wins, played: stats.played });
       if (win) submit('slizgle', 7 - st.rows.length, false, true); else { var d = load(); d.played = (d.played || 0) + 1; save(d); }
       if (reply && reply.xp && reply.xp.got && window.SnXP) SnXP.gained(reply.xp);
       played('slizgle'); setTimeout(zone, 0);
@@ -630,6 +631,28 @@ var SliskaSim = (function () {
       ['w_l35', 'Rekordzistka długości', 'Dojdź do 70 cm', 'trophy', function (s) { return s.len >= 35; }],
       ['w_obs', 'Pełna scena', 'Przeżyj, gdy na scenie stoi 5 kolumn', 'shield', function (s) { return s.obs >= 5; }],
       ['w_40', 'Lista featów', 'Zdobądź 40 punktów', 'flame', function (s) { return s.score >= 40; }]
+    ],
+    slizgle: [
+      ['z_win', 'Pierwsza krew', 'Zgadnij słowo dnia', 'drop', function (s) { return s.win; }],
+      ['z_3', 'Szybki ruch', 'Zgadnij w 3 próbach lub szybciej', 'bolt', function (s) { return s.win && s.tries <= 3; }],
+      ['z_1', 'Jasnowidz', 'Zgadnij za pierwszym razem', 'star', function (s) { return s.win && s.tries === 1; }],
+      ['z_6', 'Na styk', 'Wygraj w ostatniej, 6. próbie', 'shield', function (s) { return s.win && s.tries === 6; }],
+      ['z_s3', 'Trzy dni z rzędu', 'Seria 3 wygranych dni', 'flame', function (s) { return s.streak >= 3; }],
+      ['z_s7', 'Tydzień bez wpadki', 'Seria 7 wygranych dni', 'trophy', function (s) { return s.streak >= 7; }],
+      ['z_w10', 'Słownik Śliskiej', 'Wygraj 10 razy', 'rule', function (s) { return s.wins >= 10; }]
+    ],
+    krzyzowka: [
+      ['x_1', 'Pierwsze hasło', 'Rozwiąż krzyżówkę tygodnia', 'rule', function (s) { return s.solved >= 1; }],
+      ['x_3', 'Cierpliwy detektyw', 'Rozwiąż 3 krzyżówki', 'clock', function (s) { return s.solved >= 3; }],
+      ['x_10', 'Mistrz haseł', 'Rozwiąż 10 krzyżówek', 'trophy', function (s) { return s.solved >= 10; }],
+      ['x_arch', 'Archeolog', 'Rozwiąż krzyżówkę z archiwum', 'star', function (s) { return s.arch >= 1; }]
+    ],
+    ukladanka: [
+      ['u_1', 'Pierwszy obrazek', 'Ułóż dowolną układankę', 'star', function (s) { return s.done; }],
+      ['u_4', 'Czwórka', 'Ułóż układankę 4×4', 'rule', function (s) { return s.done && s.n >= 4; }],
+      ['u_5', 'Pięć na pięć', 'Ułóż układankę 5×5', 'trophy', function (s) { return s.done && s.n >= 5; }],
+      ['u_gold', 'Złoty medal', 'Ułóż w limicie ruchów na złoto', 'flame', function (s) { return s.done && s.gold; }],
+      ['u_fast', 'Błyskawica', 'Ułóż w mniej niż 60 sekund', 'bolt', function (s) { return s.done && s.sec < 60; }]
     ]
   };
   function achGot(gid) { var d = load(); return ((d.ach || {})[gid]) || []; }
@@ -640,6 +663,14 @@ var SliskaSim = (function () {
   function achBox(gid) {
     var got = achGot(gid).length;
     return '<section class="gp-box ach-box"><h3>Osiągnięcia <small id="gry-ach-c">' + got + '/' + ACHS[gid].length + '</small></h3><ul class="gp-ach" id="gry-ach">' + achItems(gid) + '</ul></section>';
+  }
+  /** Osiągnięcia dla gier bez silnika canvas (Ślizgle, Krzyżówka, Układanka): ocena po zakończeniu rundy. */
+  function achEval(gid, s) {
+    var list = ACHS[gid]; if (!list) return;
+    var d = load(), got = (d.ach = d.ach || {}), arr = (got[gid] = got[gid] || []), add = [];
+    list.forEach(function (a) { if (arr.indexOf(a[0]) < 0 && a[4](s)) { arr.push(a[0]); add.push(a); } });
+    if (!add.length) return; save(d);
+    add.forEach(function (a, i) { setTimeout(function () { toast('🏆 ' + a[1]); }, 600 + i * 1800); }); achRefresh(gid);
   }
   function achRefresh(gid) { var u = $('#gry-ach'), c = $('#gry-ach-c'); if (u) u.innerHTML = achItems(gid); if (c) c.textContent = achGot(gid).length + '/' + ACHS[gid].length; }
 
@@ -1515,7 +1546,7 @@ var SliskaSim = (function () {
     shell(el, g, '<div class="uk"><div class="uk-bar"><div class="uk-seg" role="group" aria-label="Poziom"><button type="button" data-n="3" class="is-on">3×3</button><button type="button" data-n="4">4×4</button><button type="button" data-n="5">5×5</button></div>' +
       '<span class="uk-chip"><small>Ruchy</small><b id="uk-m">0</b></span><span class="uk-chip"><small>Czas</small><b id="uk-t">0:00</b></span><span class="uk-chip"><small>Rekord</small><b id="uk-b">–</b></span></div>' +
       '<div class="uk-frame"><div class="uk-board" id="uk-board"></div><div class="uk-ghost" id="uk-ghost" hidden></div><div class="uk-done" id="uk-done" hidden></div></div>' +
-      '<div class="uk-acts"><button type="button" class="btn btn-sm" id="uk-hint">Podpowiedź</button><button type="button" class="btn btn-sm" id="uk-peek">Podgląd</button><button type="button" class="btn btn-sm" id="uk-new">Inne zdjęcie</button><button type="button" class="btn btn-sm" id="uk-mix">Wymieszaj</button></div><p class="uk-art" id="uk-art"></p></div>');
+      '<div class="uk-acts"><button type="button" class="btn btn-sm" id="uk-hint">Podpowiedź</button><button type="button" class="btn btn-sm" id="uk-peek">Podgląd</button><button type="button" class="btn btn-sm" id="uk-new">Inne zdjęcie</button><button type="button" class="btn btn-sm" id="uk-mix">Wymieszaj</button></div><p class="uk-art" id="uk-art"></p></div>', { side: achBox('ukladanka') });
     function src() { return art ? art.image : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(K('ziomek').replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" style="background:#ffe3d6" ')).replace(/'/g, '%27'); }
     function pick() { art = arts.length ? arts[Math.floor(Math.random() * Math.min(arts.length, 24))] : null; }
     function solvable(a) { var inv = 0, f = a.filter(function (x) { return x !== N * N - 1; }); for (var i = 0; i < f.length; i++) for (var j = i + 1; j < f.length; j++) if (f[i] > f[j]) inv++; if (N % 2) return inv % 2 === 0; var row = N - Math.floor(a.indexOf(N * N - 1) / N); return (inv + row) % 2 === 1; }
@@ -1543,7 +1574,7 @@ var SliskaSim = (function () {
       if (!t0) { t0 = Date.now(); timer = setInterval(function () { var s = Math.floor((Date.now() - t0) / 1000); $('#uk-t').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }, 500); }
       draw();
       if (tiles.every(function (v, k) { return v === k; })) {
-        clearInterval(timer); var dd = load(); dd.ukBest = dd.ukBest || {}; var nbl = !dd.ukBest[N] || moves < dd.ukBest[N]; if (nbl) { dd.ukBest[N] = moves; save(dd); } if (N === 4) TLS.ukladanka = tlU; var nb = N === 4 ? submit('ukladanka', moves) : nbl; played('ukladanka'); var pr = PAR[N] || [999, 999], medal = moves <= pr[0] ? 'Złoty medal' : moves <= pr[1] ? 'Srebrny medal' : 'Ułożone';
+        clearInterval(timer); var dd = load(); dd.ukBest = dd.ukBest || {}; var nbl = !dd.ukBest[N] || moves < dd.ukBest[N]; if (nbl) { dd.ukBest[N] = moves; save(dd); } if (N === 4) TLS.ukladanka = tlU; var nb = N === 4 ? submit('ukladanka', moves) : nbl; played('ukladanka'); var pr = PAR[N] || [999, 999]; achEval('ukladanka', { done: true, n: N, gold: moves <= pr[0], sec: Math.floor((Date.now() - t0) / 1000) }); var medal = moves <= pr[0] ? 'Złoty medal' : moves <= pr[1] ? 'Srebrny medal' : 'Ułożone';
         $('#uk-board').classList.add('is-done');
         var dn = $('#uk-done'); dn.hidden = false;
         dn.innerHTML = '<div class="gm">' + (nb ? '<span class="gry-new">Nowy rekord!</span>' : '<span class="gm-eye">' + medal + '</span>') + '<div class="gm-score">' + moves + '<small>ruchów</small></div><p class="gm-end">' + (nb ? medal + ' · ' : '') + 'Czas: ' + $('#uk-t').textContent + ' · poziom ' + N + '×' + N + (N === 4 ? ' (liczy się do rankingu)' : '') + '</p><div class="gm-acts"><button type="button" class="btn btn-primary" id="uk-again">Jeszcze raz</button>' + (art ? '<a class="btn" href="#/artykul/' + encodeURIComponent(art.id) + '">Czytaj artykuł</a>' : '') + '</div></div>';
@@ -1590,7 +1621,7 @@ var SliskaSim = (function () {
   ];
   function krzyzowka(el, ctx) {
     var g = G('krzyzowka'), arts = (ctx && ctx.articles) || [];
-    shell(el, g, '<div class="kz"><p class="sz-load">Ładowanie krzyżówki…</p></div>', { tag: 'Tydzień #' + weekIndex() });
+    shell(el, g, '<div class="kz"><p class="sz-load">Ładowanie krzyżówki…</p></div>', { tag: 'Tydzień #' + weekIndex(), side: achBox('krzyzowka') });
     cfg().then(function (c) {
       if (!$('.gp[data-game="krzyzowka"]')) return;
       if (!arts.length && typeof state !== 'undefined') arts = state.articles || [];
@@ -1621,7 +1652,7 @@ var SliskaSim = (function () {
   function krzArchPlay(el, w, ctx) {
     var g = G('krzyzowka'), arts = (ctx && ctx.articles) || []; if (!arts.length && typeof state !== 'undefined') arts = state.articles || [];
     if (w >= weekIndex() || w < 1) { location.hash = '#/gry/krzyzowka-arch'; return; }
-    shell(el, g, '<div class="kz"></div>', { tag: 'Archiwum · ' + (w < 0 ? 'zestaw startowy ' + (-w) : 'tydzień #' + w), noTop: true });
+    shell(el, g, '<div class="kz"></div>', { tag: 'Archiwum · ' + (w < 0 ? 'zestaw startowy ' + (-w) : 'tydzień #' + w), noTop: true, side: achBox('krzyzowka') });
     krzRun(krzSetFor(w, arts), 'Archiwum, ' + weekRange(w), w, true);
   }
   function krzRun(set, own, week, arch) {
@@ -1671,6 +1702,7 @@ var SliskaSim = (function () {
         st.done = 1; lsSet(key, st); lsSet('sn-krzyz-done-' + W, 1); var d = load();
         if (arch) { d.archSolved = (d.archSolved || 0) + 1; save(d); toast('Krzyżówka z archiwum rozwiązana! 🧩'); }
         else { d.solved = (d.solved || 0) + 1; save(d); submit('krzyzowka', d.solved); played('krzyzowka'); toast('Krzyżówka rozwiązana! 🧩'); }
+        achEval('krzyzowka', { solved: d.solved || 0, arch: d.archSolved || 0 });
       }
     }
     $('#kz-check').onclick = function () {

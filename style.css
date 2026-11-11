@@ -4239,3 +4239,11 @@ a.saga-t:hover span { color: var(--accent); }
   .rv4 .review-both { margin-left: auto; margin-right: auto; }
 }
 :root[data-theme="dark"] .rv4 .review-artist a { color: color-mix(in srgb, var(--vinyl) 62%, #fff); }
+/* szybkie przełączanie kont przy ikonie */
+.acc-quick{position:fixed;z-index:9000;width:min(320px,calc(100vw - 16px));display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:16px;background:var(--card,#fff);border:1px solid var(--border);box-shadow:0 14px 40px rgba(0,0,0,.28)}
+.acc-q-row{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:12px;border:1px solid transparent;background:none;color:var(--text);text-align:left;font:inherit;cursor:pointer}
+.acc-q-row:hover{background:rgba(127,127,127,.12)}
+.acc-q-row.is-on{border-color:var(--accent,#d6001c)}
+.acc-q-row .avatar{width:38px;height:38px;flex:none;font-size:.8rem}
+.acc-q-row small{display:block;color:var(--muted,#888)}
+.acc-q-add{padding:9px;border-radius:12px;border:1px dashed var(--border);background:none;color:var(--text);font:inherit;cursor:pointer}

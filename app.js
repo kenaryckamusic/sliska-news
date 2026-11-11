@@ -2820,7 +2820,7 @@ function galleryClick(e) {
 
 /* ---------- Szybkie przełączanie kont (konta czytelników zapamiętane na tym urządzeniu) ---------- */
 const Accounts = {
-  KEY: 'sliska_accounts', MAX: 5, SESSION_MS: 24 * 3600e3,
+  KEY: 'sliska_accounts', MAX: 8, SESSION_MS: 365 * 24 * 3600e3,
   list() { try { const l = JSON.parse(localStorage.getItem(this.KEY)); return Array.isArray(l) ? l : []; } catch { return []; } },
   save(l) { try { localStorage.setItem(this.KEY, JSON.stringify(l.slice(0, this.MAX))); } catch { /* ignoruj */ } },
   /** Zapamiętuje zalogowane konto (sesja Śliskiej, bez hasła), żeby dało się do niego wrócić jednym kliknięciem. */
@@ -2831,6 +2831,23 @@ const Accounts = {
     const l = this.list(), i = l.findIndex(a => a.uid === user.uid);
     if (i >= 0) l[i] = entry; else l.push(entry);
     this.save(l);
+  },
+  /** Szybkie okienko przy ikonie konta (na każdej podstronie): lista kont, przełączenie jednym kliknięciem. */
+  quick(btn) {
+    const old = document.getElementById('acc-quick'); if (old) { old.remove(); return true; }
+    const l = this.list(); if (l.length < 2 || !Readers.user) return false;
+    const cur = Readers.user.uid, pop = document.createElement('div');
+    pop.id = 'acc-quick'; pop.className = 'acc-quick'; pop.setAttribute('role', 'menu');
+    pop.innerHTML = l.map(a => { const on = a.uid === cur, exp = this.expired(a);
+      return `<button type="button" role="menuitem" class="acc-q-row${on ? ' is-on' : ''}" ${on ? 'data-acc-go="1"' : `data-acc-switch="${Utils.esc(a.uid)}"`}><span class="avatar" aria-hidden="true">${readerAvatar(a.name, a.av, a.pub)}</span><span class="acc-sw-main"><strong>${Utils.esc(a.name)}</strong><small>${Utils.esc(ROLE_LABEL[a.role] || 'Czytelnik')}${on ? ' · aktywne – otwórz konto' : exp ? ' · wymaga logowania' : ''}</small></span></button>`; }).join('')
+      + (l.length < this.MAX ? '<button type="button" class="acc-q-add" id="acc-add">+ Dodaj kolejne konto</button>' : '');
+    document.body.appendChild(pop);
+    const r = btn.getBoundingClientRect();
+    pop.style.top = (r.bottom + 8) + 'px'; pop.style.right = Math.max(8, innerWidth - r.right) + 'px';
+    const off = ev => { if (!pop.contains(ev.target) && !btn.contains(ev.target)) { pop.remove(); document.removeEventListener('click', off, true); } };
+    setTimeout(() => document.addEventListener('click', off, true), 0);
+    pop.addEventListener('click', ev => { if (ev.target.closest('[data-acc-go]')) { pop.remove(); location.hash = '#/konto'; } if (ev.target.closest('#acc-add')) pop.remove(); });
+    return true;
   },
   forget(uid) { this.save(this.list().filter(a => a.uid !== uid)); },
   expired(a) { return !a.authTime || Date.now() - a.authTime > this.SESSION_MS - 600e3; },
@@ -2843,7 +2860,6 @@ const Accounts = {
       try { await Push.unlink(); } catch { /* ignoruj */ }
       if (!a.user || !a.user.token) throw new Error('stara sesja');
       window.SliskaAuth.auth().useSession(a.user.token);
-      location.hash = '#/konto';
       location.reload();
     } catch (e) { console.warn('Przełączenie konta nie powiodło się:', e); toast('Nie udało się przełączyć konta. Zaloguj się ręcznie.', 'error'); }
   },
@@ -2860,7 +2876,7 @@ const Accounts = {
       </div>`;
     }).join('');
     return `<section class="panel st-card">
-      <div class="st-head"><h2 class="st-h">Przełącz konto</h2><p class="st-sub">Konta zalogowane na tym urządzeniu. Hasła nie są zapamiętywane, a sesja trwa 24 godziny od logowania.</p></div>
+      <div class="st-head"><h2 class="st-h">Przełącz konto</h2><p class="st-sub">Konta zalogowane na tym urządzeniu. Hasła nie są zapamiętywane – zostaje bezpieczna sesja, która odnawia się sama (do roku).</p></div>
       <div class="acc-sw-list">${rows}</div>
       ${l.length < this.MAX ? '<div class="st-actions"><button type="button" class="btn btn-sm" id="acc-add">+ Dodaj kolejne konto</button></div>' : ''}
     </section>`;
@@ -3260,6 +3276,7 @@ const Readers = {
   async resend() { await this.sendVerify(true); },
   async refresh() { if (!this.user) return; await this.user.reload(); await this.user.getIdToken(true); await this.loadMe(); this.render(); },
   async saveName(name) { this.me = await this.api('/me', { method: 'POST', body: JSON.stringify({ name }) }); this.render(); },
+  async saveBadge(v) { this.me = await this.api('/me', { method: 'POST', body: JSON.stringify({ nobadge: !!v }) }); this.render(); },
   async saveBio(bio) { this.me = await this.api('/me', { method: 'POST', body: JSON.stringify({ bio }) }); this.render(); },
   async saveAvatar(dataUrl) { this.me = await this.api('/me', { method: 'POST', body: JSON.stringify({ avatar: dataUrl || null }) }); this.render(); },
   render() {
@@ -3801,6 +3818,7 @@ function renderAccount() {
           <small class="hint">${next ? 'Następną zmianę nazwy możesz zrobić ' + next + '.' : 'Małe litery a–z, cyfry, „.” i „_” (bez spacji). Nazwa służy też do logowania; zmienisz ją raz na 30 dni.'}</small></label>
         <label class="field"><span class="field-label">Krótka biografia <small class="hint" id="acc-bio-n">${Array.from(me.bio || '').length}/150</small></span>
           <textarea id="acc-bio" rows="3" maxlength="150" placeholder="Kilka słów o sobie – zobaczą je inni na Twoim profilu publicznym.">${Utils.esc(me.bio || '')}</textarea></label>
+        ${['editor', 'chief', 'owner'].includes(me.role) ? `<label class="check"><input type="checkbox" id="acc-nobadge" ${me.nobadge ? 'checked' : ''}> <span>Ukryj moją plakietkę (${Utils.esc(ROLE_LABEL[me.role] || 'Redaktor')}) w komentarzach i na profilu</span></label>` : ''}
         <div class="st-actions"><button type="button" class="btn btn-primary" id="acc-save">Zapisz profil</button></div>
         <p class="form-error" id="acc-error" hidden></p>
       </section>
@@ -3878,7 +3896,7 @@ async function shrinkToJpeg(file, size = 1200, maxChars = 1300000) {
 function bindReaderEvents() {
   $('#btn-account').addEventListener('click', () => {
     const go = h => { if (location.hash === h) { route(); window.scrollTo({ top: 0, behavior: 'smooth' }); } else location.hash = h; };   // ten sam adres = wcześniej „nic się nie działo”
-    if (Readers.loggedIn()) go('#/konto');
+    if (Readers.loggedIn()) { if (!Accounts.quick($('#btn-account'))) go('#/konto'); }
     else openReaderModal('login');
   });
   $('#reader-error').className = 'form-error';
@@ -3918,6 +3936,7 @@ function bindReaderEvents() {
         const nm = $('#acc-name'), bio = ($('#acc-bio').value || '').trim().replace(/\s+/g, ' ').slice(0, 150);
         if (nm && !nm.disabled && nm.value.trim() !== ((Readers.me && Readers.me.name) || '')) await Readers.saveName(nm.value.trim());
         if (bio !== ((Readers.me && Readers.me.bio) || '')) await Readers.saveBio(bio);
+        { const nb = $('#acc-nobadge'); if (nb && nb.checked !== !!(Readers.me && Readers.me.nobadge)) await Readers.saveBadge(nb.checked); }
         toast('Profil zapisany.');
       } catch (ex) { er.textContent = readerErr(ex); er.hidden = false; }
     } else if (e.target.id === 'acc-avatar-remove') { try { await Readers.saveAvatar(null); toast('Zdjęcie usunięte.'); } catch (ex) { toast(readerErr(ex), 'error'); } }
