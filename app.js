@@ -956,21 +956,59 @@ function reviewHtml(a) {
   const r = a.review;
   if (!r || r.score === null || r.score === undefined) return '';
   const coverSrc = coverOf(a);
-  const same = reviewSameCover(a);
-  const cover = coverSrc
-    ? `<figure class="review-cover"><div class="media-wrap"><img src="${Utils.esc(coverSrc)}" alt="Okładka: ${Utils.esc(r.work)}" data-cat="${Utils.esc(Utils.catsOf(a)[0] || '')}"></div></figure>`
+  const best = r.score > BEST_SCORE;
+  const filled = Math.round(Math.max(0, Math.min(10, r.score)));
+  const sleeve = coverSrc
+    ? `<div class="rv4-sleeve"><span class="rv4-disc" aria-hidden="true"></span><figure class="review-cover"><div class="media-wrap"><img src="${Utils.esc(coverSrc)}" alt="Okładka: ${Utils.esc(r.work)}" data-cat="${Utils.esc(Utils.catsOf(a)[0] || '')}"></div></figure></div>`
     : '';
-  return `<section class="review ${cover ? '' : 'review-nocover'}" aria-label="Ocena">
-    ${scoreHtml(r.score)}
+  return `<section class="review rv4 ${coverSrc ? '' : 'review-nocover'}${best ? ' is-best' : ''}" aria-label="Ocena">
+    ${sleeve}
     <div class="review-info">
-      ${r.kind ? `<div class="review-kind">${Utils.esc(r.kind)}</div>` : ''}
+      ${r.kind || r.year ? `<div class="review-kind">${Utils.esc([r.kind, r.year].filter(Boolean).join(' · '))}</div>` : ''}
       <div class="review-work">${Utils.esc(r.work)}</div>
       ${r.artist ? `<div class="review-artist"><a href="#/artysta/${encodeURIComponent(r.artist)}">${Utils.esc(r.artist)}</a></div>` : ''}
-      ${r.year ? `<div class="review-year">${Utils.esc(r.year)}</div>` : ''}
+      <div class="rv4-score" role="img" aria-label="Ocena ${Utils.formatScore(r.score)} na 10">
+        <span class="rv4-num">${Utils.formatScore(r.score)}<small>/10</small></span>
+        <span class="rv4-dots" aria-hidden="true">${Array.from({ length: 10 }, (_, i) => `<i${i < filled ? ' class="on"' : ''}></i>`).join('')}</span>
+      </div>
       <div class="review-both" data-rv-both="${Utils.esc(a.id)}" hidden></div>
     </div>
-    ${cover}
   </section>`;
+}
+
+/** Kolor środka płyty = dominujący kolor okładki (jeden, nasycony). Gdy się nie uda – zostaje czerwień strony. */
+function tintVinyl() {
+  const root = document.querySelector('.review.rv4'), img = root && root.querySelector('.review-cover img');
+  if (!img) return;
+  const im = new Image();
+  im.crossOrigin = 'anonymous';
+  im.onload = () => {
+    try {
+      const n = 32, c = document.createElement('canvas'); c.width = c.height = n;
+      const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, n, n);
+      const d = x.getImageData(0, 0, n, n).data, bins = Array.from({ length: 12 }, () => ({ w: 0, r: 0, g: 0, b: 0 }));
+      let tr = 0, tg = 0, tb = 0, tn = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const R = d[i], G = d[i + 1], B = d[i + 2], mx = Math.max(R, G, B), mn = Math.min(R, G, B), sat = mx ? (mx - mn) / mx : 0;
+        tr += R; tg += G; tb += B; tn++;
+        if (mx < 40 || sat < 0.25) continue;
+        let h = mx === R ? ((G - B) / (mx - mn)) % 6 : mx === G ? (B - R) / (mx - mn) + 2 : (R - G) / (mx - mn) + 4;
+        h = (h * 60 + 360) % 360;
+        const w = sat * (mx / 255), k = bins[Math.floor(h / 30) % 12];
+        k.w += w; k.r += R * w; k.g += G * w; k.b += B * w;
+      }
+      let best = bins.reduce((p, q) => (q.w > p.w ? q : p), bins[0]), R, G, B;
+      if (best.w > 1.5) { R = best.r / best.w; G = best.g / best.w; B = best.b / best.w; }
+      else { R = tr / tn; G = tg / tn; B = tb / tn; }              // okładka prawie szara/czarno-biała
+      const mx = Math.max(R, G, B) / 255, mn = Math.min(R, G, B) / 255; let l = (mx + mn) / 2, s = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1));
+      let h = 0; const dd = mx - mn;
+      if (dd) { h = mx * 255 === R ? ((G - B) / 255 / dd) % 6 : mx * 255 === G ? (B - R) / 255 / dd + 2 : (R - G) / 255 / dd + 4; h = (h * 60 + 360) % 360; }
+      if (best.w > 1.5) s = Math.max(s, 0.6);
+      l = Math.min(0.56, Math.max(0.4, l));
+      root.style.setProperty('--vinyl', `hsl(${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%)`);
+    } catch (e) { /* okładka z innej domeny bez CORS – zostaje kolor domyślny */ }
+  };
+  im.src = img.currentSrc || img.src;
 }
 
 function currentRoute() {
@@ -1689,6 +1727,7 @@ function renderArticleView(id) {
   injectPeek(el, a);
   $('#side-comments').innerHTML = '';
   initReaderVote(a);
+  tintVinyl();
   initReactions(a);
   initComments(a);
   document.title = `${a.title} – ${CONFIG.SITE_NAME}`;
