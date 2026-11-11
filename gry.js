@@ -58,7 +58,7 @@
     { id: 'pojedynek', name: 'Pojedynek', knaga: 'kowboj', sub: 'Kto pierwszy, ten żyje.', tag: 'Nowość', unit: 'pkt', c: ['#b45309', '#fbbf24'],
       how: 'Czekaj na napis STRZELAJ! i wtedy kliknij albo stuknij w ekran, szybciej niż rywal. Za wczesny strzał kosztuje życie. Z każdą wygraną rywal jest szybszy, a im szybciej strzelisz, tym więcej punktów.' },
     { id: 'ratunek', name: 'Ratunek', knaga: 'ratownik', sub: 'Łap Knagi i omijaj meduzy.', tag: 'Nowość', unit: 'pkt', c: ['#0284c7', '#22d3ee'],
-      how: 'Przesuwaj palcem w lewo i prawo, żeby koło ratunkowe łapało spadające Knagi. Seria daje bonus. Uciekająca Knaga albo złapana meduza to utrata życia.' },
+      how: 'Przesuwaj palcem w lewo i prawo, żeby koło ratunkowe łapało spadające Knagi. Seria daje bonus. Uciekająca Knaga albo złapana meduza to utrata życia. Z czasem robi się coraz szybciej i gęściej, a Knagi zbaczają na boki.' },
     { id: 'karny', name: 'Rzut karny', knaga: 'kibic', sub: 'Pokonaj bramkarza.', tag: 'Nowość', unit: 'pkt', c: ['#15803d', '#ef4444'],
       how: 'Przeciągnij palcem od piłki w stronę bramki i puść. Kierunek to strona strzału, a długość to wysokość. Górne rogi dają najwięcej punktów, ale łatwo o pudło. Bramkarz jest coraz lepszy, a trzy nieudane karne kończą grę.' },
     { id: 'kregle', name: 'Kręgle', knaga: 'ziomek', sub: 'Machnij palcem i zbij wszystkie.', tag: 'Nowość', unit: 'pkt', c: ['#0f766e', '#f59e0b'],
@@ -553,8 +553,8 @@ var SliskaSim = (function () {
       ['k_life', 'Dodatkowe życie', 'Złap serduszko', 'heart', function (s) { return s.life >= 1; }],
       ['k_c10', 'Kombinator', 'Złap 10 kropli z rzędu', 'bolt', function (s) { return s.combo >= 10; }],
       ['k_c25', 'Mega combo', 'Złap 25 kropli z rzędu', 'flame', function (s) { return s.combo >= 25; }],
-      ['k_umb', 'Pod parasolem', 'Parasol uratuje Cię przed pozwem', 'shield', function (s) { return s.shieldsave >= 1; }],
-      ['k_set', 'Zestaw bonusów', 'Złap magnes, parasol i saunę w jednej grze', 'star', function (s) { return s.pw_mag >= 1 && s.pw_shield >= 1 && s.pw_slow >= 1; }],
+      ['k_umb', 'Dobrze zabezpieczony', 'Gumka uratuje Cię przed pozwem', 'shield', function (s) { return s.shieldsave >= 1; }],
+      ['k_set', 'Zestaw bonusów', 'Złap magnes, gumkę i saunę w jednej grze', 'star', function (s) { return s.pw_mag >= 1 && s.pw_shield >= 1 && s.pw_slow >= 1; }],
       ['k_dry', 'Bez pozwu', '40 punktów bez utraty życia', 'check', function (s) { return s.score >= 40 && !(s.lost > 0); }],
       ['k_100', 'Wanna po brzegi', 'Zdobądź 100 punktów', 'trophy', function (s) { return s.score >= 100; }],
       ['k_200', 'Potop', 'Zdobądź 200 punktów', 'trophy', function (s) { return s.score >= 200; }]
@@ -565,8 +565,8 @@ var SliskaSim = (function () {
       ['f_15', 'Nowa scena', 'Dolec do drugiej sceny (15 pkt)', 'bolt', function (s) { return s.score >= 15; }],
       ['f_30', 'Super Knaga', 'Zdobądź 30 punktów', 'trophy', function (s) { return s.score >= 30; }],
       ['f_50', 'Legenda sceny', 'Zdobądź 50 punktów', 'trophy', function (s) { return s.score >= 50; }],
-      ['f_sh', 'Tarcza', 'Złap złotą tarczę', 'shield', function (s) { return s.shield >= 1; }],
-      ['f_save', 'Twardziel', 'Tarcza przyjmie za Ciebie uderzenie', 'check', function (s) { return s.shieldsave >= 1; }],
+      ['f_sh', 'Zabezpieczony', 'Złap złotą gumkę', 'shield', function (s) { return s.shield >= 1; }],
+      ['f_save', 'Twardziel', 'Gumka pęka za Ciebie przy uderzeniu', 'check', function (s) { return s.shieldsave >= 1; }],
       ['f_drop', 'Zbieracz kropli', 'Złap 5 kropli w jednym locie', 'drop', function (s) { return s.drop >= 5; }],
       ['f_t', 'Maraton', 'Leć 90 sekund bez uderzenia', 'clock', function (s) { return s.t >= 90; }]
     ],
@@ -578,7 +578,7 @@ var SliskaSim = (function () {
       ['s_dtrick', 'Podwójne salto', 'Zrób podwójne salto', 'flame', function (s) { return s.dtrick >= 1; }],
       ['s_duck', 'Pod dronem', 'Prześlizgnij się pod dronem z pozwem', 'check', function (s) { return s.duck >= 1; }],
       ['s_dive', 'Nurek', 'Nurkuj w powietrzu', 'drop', function (s) { return s.dive >= 1; }],
-      ['s_save', 'Parasol ratuje', 'Parasol przyjmie za Ciebie uderzenie', 'shield', function (s) { return s.shieldsave >= 1; }],
+      ['s_save', 'Gumka ratuje', 'Gumka przyjmie za Ciebie uderzenie', 'shield', function (s) { return s.shieldsave >= 1; }],
       ['s_night', 'Nocna zmiana', 'Dopłyń do nocy (400 m)', 'star', function (s) { return s.dist >= 400; }],
       ['s_800', 'Neonowa fala', 'Dopłyń do neonu (800 m)', 'star', function (s) { return s.dist >= 800; }],
       ['s_1500', 'Legenda fali', 'Przepłyń 1500 m', 'trophy', function (s) { return s.dist >= 1500; }]
@@ -644,8 +644,10 @@ var SliskaSim = (function () {
   function achRefresh(gid) { var u = $('#gry-ach'), c = $('#gry-ach-c'); if (u) u.innerHTML = achItems(gid); if (c) c.textContent = achGot(gid).length + '/' + ACHS[gid].length; }
 
   /* ============== wspólny silnik gier zręcznościowych (canvas) ============== */
-  var STARS = { krople: [25, 130, 250], flappy: [6, 35, 60], waz: [8, 45, 80], slizgawka: [150, 1000, 2500], kregle: [90, 160, 230], pojedynek: [60, 200, 450], ratunek: [25, 90, 200], karny: [40, 130, 280] };
+  var STARS = { krople: [25, 130, 250], flappy: [6, 35, 60], waz: [8, 45, 80], slizgawka: [150, 1000, 2500], kregle: [90, 160, 230], pojedynek: [60, 200, 450], ratunek: [22, 80, 175], karny: [40, 130, 280] };
   var STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.2 6.1 20.4l1.2-6.5L2.5 9.3l6.6-.9z" stroke-linejoin="round" stroke-width="1.4"/></svg>';
+  /* XP za ukończenie rośnie z wynikiem: 12 XP przy progu 3 gwiazdek, proporcjonalnie niżej/wyżej, 2–20 (to samo liczy serwer); gry bez progów – 5 */
+  function gameXpFor(gid, sc) { var th = STARS[gid]; return th ? Math.max(2, Math.min(20, Math.round(12 * sc / th[2]))) : 5; }
   function starsHtml(gid, sc) { var th = STARS[gid]; if (!th) return ''; var n = th.filter(function (v) { return sc >= v; }).length; return '<div class="gm-stars" aria-label="' + n + ' z 3 gwiazdek">' + [0, 1, 2].map(function (i) { return '<span class="' + (i < n ? 'on' : '') + '" style="--d:' + (.25 + i * .22) + 's">' + STAR_SVG + '</span>'; }).join('') + '</div>'; }
   var imgCache = {};
   function knagaImg(slug) {
@@ -686,7 +688,7 @@ var SliskaSim = (function () {
         menu('<span class="gm-eye">Koniec gry</span><div class="gm-k">' + K(et[1] || g.knaga, 'gk') + '</div><p class="gm-end">' + et[0] + '</p>' + starsHtml(g.id, sc) + '<div class="gm-score">' + sc + '<small>' + (g.unit || '') + '</small></div>' +
           (nb ? '<span class="gry-new">Nowy rekord!</span>' : '<p class="gm-best">Twój rekord: <b>' + fmt(g.id, best(g.id)) + '</b></p>') +
           (api.newAch.length ? '<div class="gm-ach"><small>Nowe osiągnięcia</small>' + api.newAch.map(function (a) { return '<span>' + aIcon(a[3], 15) + a[1] + '</span>'; }).join('') + '</div>' : '') +
-          (logged() ? (sc > 0 ? '<p class="gm-xp">+' + (nb ? 15 : 5) + ' XP do sezonu</p>' : '') : '<p class="gm-note">Zaloguj się, żeby rekord zapisał się na koncie.</p>'),
+          (logged() ? (sc > 0 ? '<p class="gm-xp">+' + (gameXpFor(g.id, sc) + (nb ? 10 : 0)) + ' XP do sezonu</p>' : '') : '<p class="gm-note">Zaloguj się, żeby rekord zapisał się na koncie.</p>'),
         'Jeszcze raz', true);
         if (nb) loadTop(g.id);
       }
@@ -761,15 +763,15 @@ var SliskaSim = (function () {
     c.fillStyle = 'rgba(255,255,255,.75)'; c.beginPath(); c.ellipse(x - r * .35, y + r * .05, r * .22, r * .42, -.4, 0, 7); c.fill(); c.restore();
   }
   function heart(c, x, y, s) { c.save(); c.translate(x, y); c.scale(s / 20, s / 20); c.beginPath(); c.moveTo(0, 6); c.bezierCurveTo(-14, -4, -8, -16, 0, -8); c.bezierCurveTo(8, -16, 14, -4, 0, 6); c.fillStyle = '#ff2d55'; c.fill(); c.lineWidth = 2.4; c.strokeStyle = INK; c.stroke(); c.restore(); }
-  /* odznaka power-upu: 'mag' magnes, 'shield' tarcza/parasol, 'slow' zegar */
+  /* odznaka power-upu: 'mag' magnes, 'shield' tarcza/gumka, 'slow' zegar */
   function badge(c, x, y, kind, t) {
-    var col = kind === 'mag' ? '#ef4444' : kind === 'shield' ? '#7c5cff' : '#14b8a6', bob = Math.sin((t || 0) * 5 + x / 30) * 3;
+    var col = kind === 'mag' ? '#ef4444' : kind === 'shield' ? '#f59e0b' : kind === 'gum' ? '#f59e0b' : '#14b8a6', bob = Math.sin((t || 0) * 5 + x / 30) * 3;
     c.save(); c.translate(x, y + bob); c.shadowColor = col; c.shadowBlur = 14;
     c.fillStyle = '#fff'; c.strokeStyle = col; c.lineWidth = 3.5; c.beginPath(); c.arc(0, 0, 17, 0, 7); c.fill(); c.stroke(); c.shadowBlur = 0;
     c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 3; c.lineCap = 'round';
     if (kind === 'mag') { c.beginPath(); c.arc(0, -1, 8, Math.PI, 0); c.lineTo(8, 8); c.moveTo(-8, -1); c.lineTo(-8, 8); c.stroke(); c.fillStyle = '#1f2937'; c.fillRect(-11, 5, 6, 5); c.fillRect(5, 5, 6, 5); }
-    else if (kind === 'shield') { c.beginPath(); c.arc(0, -1, 9, Math.PI, 0); c.closePath(); c.fill(); c.beginPath(); c.moveTo(0, -1); c.lineTo(0, 8); c.arc(-3, 8, 3, 0, Math.PI); c.stroke(); }
-    else { c.beginPath(); c.arc(0, 0, 9, 0, 7); c.stroke(); c.beginPath(); c.moveTo(0, -6); c.lineTo(0, 0); c.lineTo(5, 2); c.stroke(); }
+    else if (kind === 'gum' || kind === 'shield') { c.save(); c.rotate(-.35); c.beginPath(); c.rect(-10, -7, 20, 14); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, 4.6, 0, 7); c.fill(); c.strokeStyle = col; c.lineWidth = 1.8; c.stroke(); c.fillStyle = col; for (var gz = -8; gz <= 8; gz += 4) { c.fillRect(-11.5, gz - 1, 2, 2); c.fillRect(9.5, gz - 1, 2, 2); } c.restore(); }
+        else { c.beginPath(); c.arc(0, 0, 9, 0, 7); c.stroke(); c.beginPath(); c.moveTo(0, -6); c.lineTo(0, 0); c.lineTo(5, 2); c.stroke(); }
     c.restore();
   }
   /* paski aktywnych power-upów: [nazwa, pozostały czas, kolor, czas całkowity] */
@@ -790,10 +792,10 @@ var SliskaSim = (function () {
 
   /* ============== ŁAP KROPLE ============== */
   function krople(el) {
-    var img = knagaImg('kapiel'), P, items, lives, spawn, combo, keys = {}, bub = [], rip = [], pw, lvl, PW = ['mag', 'shield', 'slow'], PN = { mag: 'Magnes!', shield: 'Parasol!', slow: 'Sauna: wolniej!' }, PB = function (t) { return .2 + Math.min(.1, t * .0015); };
+    var img = knagaImg('kapiel'), P, items, lives, spawn, combo, keys = {}, bub = [], rip = [], pw, lvl, PW = ['mag', 'shield', 'slow'], PN = { mag: 'Magnes!', shield: 'Gumka!', slow: 'Sauna: wolniej!' }, PB = function (t) { return .2 + Math.min(.1, t * .0015); };
     for (var i = 0; i < 16; i++) bub.push({ x: Math.random(), y: Math.random(), r: 3 + Math.random() * 9, v: .03 + Math.random() * .06 });
     canvasGame(el, G('krople'), {
-      lives: true, intro: 'Przesuwaj wannę z Knagą i łap krople. Mocz +5, serduszko oddaje życie, a pozew je zabiera. Łap bonusy: magnes przyciąga krople, parasol łapie pozew, sauna zwalnia czas. Co 30 punktów nowy poziom.',
+      lives: true, intro: 'Przesuwaj wannę z Knagą i łap krople. Mocz +5, serduszko oddaje życie, a pozew je zabiera. Łap bonusy: magnes przyciąga krople, gumka łapie pozew, sauna zwalnia czas. Co 30 punktów nowy poziom.',
       keys: [['← →', 'ruch'], ['mysz / palec', 'przesuń'], ['Esc', 'pauza']],
       endText: function (s) { return s > 120 ? ['Wanna pełna po brzegi. Mokro jak nigdy!', 'imprezowa'] : s > 50 ? ['Porządnie się zmoczyła.', 'kapiel'] : s > 15 ? ['Ledwo wilgotno. Stać Cię na więcej.', 'sauna'] : ['Sucho jak na Saharze. Knaga się nie zmoczyła.', 'niesmiala']; },
       init: function (a, cv) {
@@ -816,7 +818,7 @@ var SliskaSim = (function () {
           it.y += it.v * dt;
           if (!it.hit && it.y > py - 26 && it.y < py + 14 && Math.abs(it.x - P.x) < 62) {
             it.hit = true; if (it.k !== 'bad') rip.push({ x: it.x, t: 0 });
-            if (it.k === 'bad') { if (pw.shield <= 0) a.shake(14); if (pw.shield > 0) { pw.shield = 0; a.ev('shieldsave'); a.burst(it.x, it.y, '#7c5cff', 14); a.pop(it.x, it.y - 20, 'Parasol zadziałał!', '#c4b5fd'); } else { lives--; a.ev('lost'); combo = 0; a.setLives(lives); a.burst(it.x, it.y, '#d6001c', 14); a.pop(it.x, it.y - 20, '−1 życie', '#ff6b6b'); if (lives <= 0) a.over(); } }
+            if (it.k === 'bad') { if (pw.shield <= 0) a.shake(14); if (pw.shield > 0) { pw.shield = 0; a.ev('shieldsave'); a.burst(it.x, it.y, '#f59e0b', 14); a.pop(it.x, it.y - 20, 'Gumka pękła!', '#c4b5fd'); } else { lives--; a.ev('lost'); combo = 0; a.setLives(lives); a.burst(it.x, it.y, '#d6001c', 14); a.pop(it.x, it.y - 20, '−1 życie', '#ff6b6b'); if (lives <= 0) a.over(); } }
             else if (PW.indexOf(it.k) >= 0) { a.ev('pw_' + it.k); pw[it.k] = it.k === 'shield' ? 14 : 8; a.pop(it.x, it.y - 22, PN[it.k], '#fff'); a.burst(it.x, it.y, '#ffcf4a', 12); }
             else if (it.k === 'life') { a.ev('life'); lives = Math.min(5, lives + 1); a.setLives(lives); a.pop(it.x, it.y - 20, '+1 życie', '#ff8fb0'); a.burst(it.x, it.y, '#ff2d55', 10); }
             else { var v = it.k === 'gold' ? 5 : 1; a.ev(it.k === 'gold' ? 'gold' : 'drop'); combo++; a.mx('combo', combo); if (combo % 10 === 0) { v += 5; a.pop(P.x, py - 70, 'COMBO +5', '#ffcf4a'); } a.setScore(a.score + v); a.burst(it.x, it.y, it.k === 'gold' ? '#ffcf4a' : '#5cc8ff', 8); a.pop(it.x, it.y - 18, '+' + (it.k === 'gold' ? 5 : 1), it.k === 'gold' ? '#ffcf4a' : '#fff'); }
@@ -851,8 +853,8 @@ var SliskaSim = (function () {
         c.fillStyle = INK; c.beginPath(); c.roundRect(bx - 50, by2 + 46, 10, 10, 3); c.roundRect(bx + 40, by2 + 46, 10, 10, 3); c.fill();
         c.fillStyle = '#fff'; [[-58, -12, 9], [-44, -16, 7], [50, -13, 8], [62, -9, 6]].forEach(function (f) { c.beginPath(); c.arc(bx + f[0], by2 + f[1], f[2], 0, 7); c.fill(); });
         c.fillStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.roundRect(bx - 56, by2 + 12, 40, 6, 3); c.fill();
-        if (pw && pw.shield > 0) { c.strokeStyle = 'rgba(124,92,255,.85)'; c.lineWidth = 4; c.beginPath(); c.arc(bx, by2 - 10, 88, Math.PI * 1.08, Math.PI * 1.92); c.stroke(); }
-        if (pw) pills(c, [['Magnes', pw.mag, '#ef4444', 8], ['Parasol', pw.shield, '#7c5cff', 14], ['Sauna', pw.slow, '#14b8a6', 8]], 12, 62);
+        if (pw && pw.shield > 0) { c.strokeStyle = 'rgba(245,158,11,.9)'; c.lineWidth = 4; c.beginPath(); c.arc(bx, by2 - 10, 88, Math.PI * 1.08, Math.PI * 1.92); c.stroke(); }
+        if (pw) pills(c, [['Magnes', pw.mag, '#ef4444', 8], ['Gumka', pw.shield, '#f59e0b', 14], ['Sauna', pw.slow, '#14b8a6', 8]], 12, 62);
         if (lvl) { c.font = '900 13px Figtree, Arial'; c.textAlign = 'right'; c.fillStyle = 'rgba(30,60,90,.7)'; c.fillText('POZIOM ' + lvl, W - 14, H - 44); }
       }
     });
@@ -865,7 +867,7 @@ var SliskaSim = (function () {
     for (var L = 0; L < 2; L++) { var x = 0; while (x < 2400) { var w = 40 + Math.random() * 70; city[L].push({ x: x, w: w, h: (L ? 70 : 120) + Math.random() * (L ? 90 : 150), seed: Math.random() }); x += w + (L ? 6 : 10); } }
     canvasGame(el, G('flappy'), {
       replay: true,
-      intro: 'Super Knaga leci nad sceną. Machaj peleryną i przelatuj między statywami. Zbieraj krople (+2) i złotą tarczę, która wybacza jedno uderzenie. Od 12 punktów statywy się ruszają, a co 15 punktów zmienia się scena.',
+      intro: 'Super Knaga leci nad sceną. Machaj peleryną i przelatuj między statywami. Zbieraj krople (+2) i złotą gumkę, która wybacza jedno uderzenie (potem pęka). Od 12 punktów statywy się ruszają, a co 15 punktów zmienia się scena.',
       keys: [['Spacja', 'w górę'], ['klik / stuknięcie', 'w górę'], ['Esc', 'pauza']],
       endText: function (s) { return s >= 30 ? ['Super Knaga to Ty! Scena należy do Ciebie.', 'super'] : s >= 12 ? ['Lata całkiem sprawnie. Prawie gwiazda.', 'gwiazdor'] : s >= 4 ? ['Krótki lot, ale z klasą.', 'ziomek'] : ['Knaga opadła.', 'niesmiala']; },
       init: function (a, cv) {
@@ -881,8 +883,8 @@ var SliskaSim = (function () {
           if (SIM.score !== before) a.setScore(SIM.score);
           var b = SIM.B;
           SIM.ev.forEach(function (e) {
-            if (e[0] === 'shieldsave') { a.ev('shieldsave'); a.pop(b.x, b.y - 44, 'Tarcza pękła', '#ffcf4a'); a.burst(b.x, b.y, '#ffcf4a', 18); }
-            else if (e[0] === 'shield') { a.ev('shield'); a.pop(b.x, b.y - 44, 'Tarcza!', '#ffcf4a'); }
+            if (e[0] === 'shieldsave') { a.ev('shieldsave'); a.pop(b.x, b.y - 44, 'Gumka pękła!', '#ffcf4a'); a.burst(b.x, b.y, '#ffcf4a', 18); }
+            else if (e[0] === 'shield') { a.ev('shield'); a.pop(b.x, b.y - 44, 'Gumka!', '#ffcf4a'); }
             else if (e[0] === 'drop') { a.ev('drop'); a.pop(b.x, b.y - 44, '+2', '#5cc8ff'); }
             else if (e[0] === 'burst') a.burst(e[1], e[2], e[3] ? '#ffcf4a' : '#5cc8ff', 10);
             else if (e[0] === 'pass') {
@@ -925,7 +927,7 @@ var SliskaSim = (function () {
             c.fillStyle = '#d6001c'; c.fillRect(p.x - 26, s[2] ? hy : hy + 38, 52, 6);
           });
           if (p.coin) dropPath(c, p.x, p.top + p.gp / 2 + Math.sin(a.t * 5 + p.ph) * 4, 9, '#5cc8ff', true);
-          if (p.sh) badge(c, p.x, p.top + p.gp / 2, 'shield', a.t);
+          if (p.sh) badge(c, p.x, p.top + p.gp / 2, 'gum', a.t);
         });
         c.fillStyle = '#140a1c'; c.fillRect(0, H - 46, W, 46); c.fillStyle = '#2a1636'; var so = (t * 200) % 40; for (var gx = -so; gx < W; gx += 40) c.fillRect(gx, H - 46, 20, 6);
         var fgd = c.createLinearGradient(0, H - 46, 0, H); fgd.addColorStop(0, 'rgba(255,207,74,.28)'); fgd.addColorStop(.35, 'rgba(255,207,74,0)'); c.fillStyle = fgd; c.fillRect(0, H - 46, W, 46);
@@ -1036,7 +1038,7 @@ var SliskaSim = (function () {
     for (i = 0; i < 4; i++) birds.push({ x: Math.random(), y: .12 + Math.random() * .22, p: Math.random() * 6 });
     (function () { var x = 0; while (x < 1700) { var k = Math.random(), w = 90 + Math.random() * 120; isl.push({ x: x, w: w, h: 22 + Math.random() * 40, k: k < .22 ? 'lh' : k < .6 ? 'isl' : 'city', s: Math.random() }); x += w + 60 + Math.random() * 120; } })();
     canvasGame(el, G('slizgawka'), {
-      intro: 'Knaga surfuje od zachodu słońca przez noc i neon aż po zorzę. Skacz (2× = podwójny skok i salto), schylaj się pod dronami z pozwami, wjeżdżaj na fale-rampy po triki i zbieraj krople. Parasol chroni przed jednym uderzeniem, magnes przyciąga krople.',
+      intro: 'Knaga surfuje od zachodu słońca przez noc i neon aż po zorzę. Skacz (2× = podwójny skok i salto), schylaj się pod dronami z pozwami, wjeżdżaj na fale-rampy po triki i zbieraj krople. Gumka chroni przed jednym uderzeniem, magnes przyciąga krople.',
       keys: [['Spacja / stuknięcie', 'skok (2× w powietrzu)'], ['↓ / lewa strona', 'schyl się / nurkuj']],
       endText: function (s) { return s > 1800 ? ['Legenda fali. Nawet ocean bije brawo.', 'super'] : s > 700 ? ['Ładnie się ślizga. Prawie surfer roku.', 'surfer'] : s > 250 ? ['Niezły przejazd, ale fala wygrała.', 'ziomek'] : ['Knaga się zmoczyła.', 'kapiel']; },
       init: function (a, cv) {
@@ -1074,7 +1076,7 @@ var SliskaSim = (function () {
         if (Math.random() < dt * .35) drops.push({ x: W + 20, y: gy - 60 - Math.random() * 110 });
         pw.shield = Math.max(0, pw.shield - dt); pw.mag = Math.max(0, pw.mag - dt);
         if (Math.random() < dt * .09) ups.push({ x: W + 20, y: gy - 70 - Math.random() * 90, k: Math.random() < .5 ? 'shield' : 'mag' });
-        ups.forEach(function (u) { u.x -= sp * dt; if (!u.hit && Math.abs(u.x - kx) < 34 && Math.abs(u.y - ky) < 46) { u.hit = true; pw[u.k] = u.k === 'shield' ? 15 : 9; a.ev('pw_' + u.k); a.pop(u.x, u.y - 22, u.k === 'shield' ? 'Parasol!' : 'Magnes!', '#fff'); a.burst(u.x, u.y, '#ffcf4a', 10); } });
+        ups.forEach(function (u) { u.x -= sp * dt; if (!u.hit && Math.abs(u.x - kx) < 34 && Math.abs(u.y - ky) < 46) { u.hit = true; pw[u.k] = u.k === 'shield' ? 15 : 9; a.ev('pw_' + u.k); a.pop(u.x, u.y - 22, u.k === 'shield' ? 'Gumka!' : 'Magnes!', '#fff'); a.burst(u.x, u.y, '#ffcf4a', 10); } });
         ramps.forEach(function (rp) { rp.x -= sp * dt; if (!rp.used && P.y === 0 && Math.abs(rp.x - kx) < 30) { rp.used = true; P.vy = -830; P.j = 1; P.spin = true; a.ev('ramp'); a.pop(kx, gy - 90, 'FALA!', '#7dd3fc'); a.burst(kx, gy, '#fff', 12); } });
         if (dist >= nextMs) { a.pop(W / 2, 110, nextMs + ' m!', '#ffcf4a'); nextMs += 500; }
         var bi = Math.floor(dist / 400); if (bi > lastBi) { lastBi = bi; a.pop(W / 2, 150, PALS[bi % 4].name, '#fff'); }
@@ -1085,7 +1087,7 @@ var SliskaSim = (function () {
           var hitIt = false;
           if (o.fly) { if (Math.abs(o.x - kx) < 34 && !duckOn && feet - 74 < gy - 72 && feet > gy - 118) hitIt = true; if (!o.pass && o.x < kx - 34) { o.pass = true; if (duckOn) a.ev('duck'); } }
           else if (Math.abs(o.x - kx) < 30 && feet > gy - o.h) hitIt = true;
-          if (hitIt) { if (pw.shield > 0) { pw.shield = 0; o.gone = true; a.ev('shieldsave'); a.pop(o.x, gy - 100, 'Parasol zadziałał!', '#c4b5fd'); a.burst(o.x, gy - 80, '#7c5cff', 14); } else { a.shake(16); a.over(); } }
+          if (hitIt) { if (pw.shield > 0) { pw.shield = 0; o.gone = true; a.ev('shieldsave'); a.pop(o.x, gy - 100, 'Gumka pękła!', '#c4b5fd'); a.burst(o.x, gy - 80, '#f59e0b', 14); } else { a.shake(16); a.over(); } }
         });
         drops.forEach(function (d) { d.x -= sp * dt; if (pw.mag > 0 && d.x > kx - 40 && d.x < kx + 240) { d.x += (kx - d.x) * dt * 4; d.y += (ky - d.y) * dt * 4; } if (!d.hit && Math.abs(d.x - kx) < 30 && Math.abs(d.y - ky) < 42) { d.hit = true; dist += 10; a.ev('drop'); a.pop(d.x, d.y - 16, '+10', '#5cc8ff'); a.burst(d.x, d.y, '#5cc8ff', 8); } });
         obs = obs.filter(function (o) { return o.x > -80 && !o.gone; }); drops = drops.filter(function (d) { return !d.hit && d.x > -30; }); ups = ups.filter(function (u) { return !u.hit && u.x > -30; }); ramps = ramps.filter(function (rp) { return rp.x > -200; });
@@ -1145,7 +1147,7 @@ var SliskaSim = (function () {
           drawK(c, img, 0, -18, 92, 0);
           if (pw.shield > 0) { c.strokeStyle = 'rgba(167,139,250,.9)'; c.lineWidth = 4; c.beginPath(); c.arc(0, -22, 58, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); }
           c.restore();
-          pills(c, [['Magnes', pw.mag, '#ef4444', 9], ['Parasol', pw.shield, '#7c5cff', 15]], 12, 62);
+          pills(c, [['Magnes', pw.mag, '#ef4444', 9], ['Gumka', pw.shield, '#f59e0b', 15]], 12, 62);
         }
         if (sp > 420) { c.strokeStyle = 'rgba(255,255,255,' + Math.min(.35, (sp - 420) / 1200) + ')'; c.lineWidth = 1.5; for (var sl = 0; sl < 9; sl++) { var ly = (sl * 83 + 17) % (gy - 40) + 20, lx = W - ((t * sp * 1.6 + sl * 131) % (W + 140)); c.beginPath(); c.moveTo(lx, ly); c.lineTo(lx + 70, ly); c.stroke(); } }
         c.font = '900 12px Figtree, Arial'; c.textAlign = 'left'; c.fillStyle = 'rgba(255,255,255,.8)'; c.fillText(PALS[bm.i].name.toUpperCase() + ' · ' + Math.round(sp / 2.7) + ' KM/H', 14, H - 14);
@@ -1383,7 +1385,7 @@ var SliskaSim = (function () {
     function drawJelly(c, x, y, r, t) { c.save(); c.translate(x, y); c.fillStyle = '#c084fc'; c.strokeStyle = '#6d28d9'; c.lineWidth = 3; c.beginPath(); c.arc(0, 0, r, Math.PI, 0); c.quadraticCurveTo(r, r * .3, r * .6, r * .3); c.quadraticCurveTo(0, r * .5, -r * .6, r * .3); c.quadraticCurveTo(-r, r * .3, -r, 0); c.fill(); c.stroke(); c.strokeStyle = '#a855f7'; c.lineWidth = 3; c.lineCap = 'round'; for (var i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(i * r * .3, r * .3); c.bezierCurveTo(i * r * .3 + Math.sin(t * 5 + i) * 6, r * .8, i * r * .3 - Math.sin(t * 5 + i) * 6, r * 1.2, i * r * .3 + Math.sin(t * 4 + i) * 5, r * 1.6); c.stroke(); } c.fillStyle = '#fff'; c.beginPath(); c.arc(-r * .3, -r * .35, r * .15, 0, 7); c.arc(r * .3, -r * .35, r * .15, 0, 7); c.fill(); c.fillStyle = '#2a1050'; c.beginPath(); c.arc(-r * .3, -r * .33, r * .07, 0, 7); c.arc(r * .3, -r * .33, r * .07, 0, 7); c.fill(); c.restore(); }
     canvasGame(el, G('ratunek'), {
       lives: true, lifeIcon: '🛟', ratio: '5 / 6',
-      intro: 'Przesuwaj palcem w lewo i prawo, żeby ratownik złapał spadające Knagi w koło ratunkowe. Każda uratowana Knaga to punkty, a seria daje bonus. Uciekająca Knaga albo meduza to utrata życia.',
+      intro: 'Przesuwaj palcem w lewo i prawo, żeby ratownik złapał spadające Knagi w koło ratunkowe. Każda uratowana Knaga to punkty, a seria daje bonus. Uciekająca Knaga albo meduza to utrata życia. Z czasem spada coraz szybciej i gęściej, a Knagi zaczynają zbaczać na boki.',
       keys: [['← →', 'ruch'], ['palec', 'przeciągnij']],
       endText: function (s) { return s >= 200 ? ['Bohater plaży. Medal gwarantowany!', 'ratownik'] : s >= 80 ? ['Sporo uratowanych. Dobra zmiana!', 'ziomek'] : ['Plaża była dziś wyjątkowo zdradliwa.', 'niesmiala']; },
       init: function (a, cv) {
@@ -1395,12 +1397,19 @@ var SliskaSim = (function () {
       reset: function (a) { P = { x: a.W / 2 }; tx = a.W / 2; items = []; lives = 3; spawn = .6; combo = 0; lvl = 1; a.setLives(lives); },
       step: function (a, dt) {
         var W = a.W, H = a.H; if (keysD.ArrowLeft) tx = (tx == null ? P.x : tx) - 520 * dt; if (keysD.ArrowRight) tx = (tx == null ? P.x : tx) + 520 * dt;
-        tx = Math.max(40, Math.min(W - 40, tx)); P.x += (tx - P.x) * Math.min(1, dt * 14);
-        lvl = 1 + a.score / 40; spawn -= dt;
-        if (spawn <= 0) { spawn = Math.max(.55, 1.15 - lvl * .06) * (.8 + Math.random() * .4); var jel = Math.random() < Math.min(.34, .14 + lvl * .02); items.push({ x: 36 + Math.random() * (W - 72), y: -40, v: 150 + Math.min(150, lvl * 12) + Math.random() * 40, jel: jel, im: FALL[Math.floor(Math.random() * FALL.length)], rot: Math.random() * 6, rv: (Math.random() - .5) * 3 }); }
-        var ringY = H - 78, rr = 46;
+        tx = Math.max(40, Math.min(W - 40, tx)); P.x += (tx - P.x) * Math.min(1, dt * 12.5);
+        lvl = 1 + a.score / 26; spawn -= dt;
+        if (spawn <= 0) {
+          spawn = Math.max(.42, 1.05 - lvl * .065) * (.78 + Math.random() * .44);
+          var nSp = lvl > 5 && Math.random() < Math.min(.28, (lvl - 5) * .04) ? 2 : 1;
+          for (var q0 = 0; q0 < nSp; q0++) {
+            var jel = Math.random() < Math.min(.4, .17 + lvl * .025), bx0 = 36 + Math.random() * (W - 72);
+            items.push({ x: bx0, bx: bx0, amp: lvl > 4 ? Math.random() * Math.min(50, (lvl - 4) * 8) : 0, ph: Math.random() * 6, y: -40 - q0 * 90, v: 170 + Math.min(200, lvl * 16) + Math.random() * 45, jel: jel, im: FALL[Math.floor(Math.random() * FALL.length)], rot: Math.random() * 6, rv: (Math.random() - .5) * 3 });
+          }
+        }
+        var ringY = H - 78, rr = 44;
         items = items.filter(function (it) {
-          it.y += it.v * dt; it.rot += it.rv * dt;
+          it.y += it.v * dt; it.rot += it.rv * dt; if (it.amp) it.x = Math.max(30, Math.min(W - 30, it.bx + Math.sin(it.y / 70 + it.ph) * it.amp));
           if (it.y > ringY - 14 && it.y < ringY + 24 && Math.abs(it.x - P.x) < rr) {
             if (it.jel) { lives--; combo = 0; a.ev('jelly'); a.setLives(lives); a.shake(10); a.burst(it.x, it.y, '#c084fc', 16); a.pop(it.x, it.y - 24, 'AUĆ!', '#ff6b6b'); }
             else { combo++; a.ev('catch'); a.mx('combo', combo); var pts = 1 + Math.min(4, Math.floor(combo / 3)); a.setScore(a.score + pts); a.burst(it.x, it.y, '#4cc3ff', 10); a.pop(it.x, it.y - 24, '+' + pts, '#ffcf4a'); }

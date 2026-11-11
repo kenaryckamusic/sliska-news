@@ -1523,10 +1523,11 @@ function articleHtml(a, plain) {
       ${heroFig}
       <div class="article-layout">
         <div class="article-main">
+          ${hasReview ? reviewHtml(a) : ''}
           ${sagaHtml(a)}
           <p class="article-lead">${Utils.esc(a.lead)}</p>
           <div class="article-body">${Sanitizer.render(a.content)}</div>
-          ${hasReview ? reviewHtml(a) + `<section class="reader-vote" id="reader-vote" data-article="${Utils.esc(a.id)}" hidden></section>` : ''}
+          ${hasReview ? `<section class="reader-vote" id="reader-vote" data-article="${Utils.esc(a.id)}" hidden></section>` : ''}
           ${tagsBlockHtml(a)}
           ${shareBarHtml(a)}
         </div>
