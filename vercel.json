@@ -15,6 +15,10 @@
       "destination": "/spot.html"
     },
     {
+      "source": "/zglos",
+      "destination": "/zglos.html"
+    },
+    {
       "source": "/a/:id",
       "destination": "https://api.sliska.pl/a/:id"
     },
