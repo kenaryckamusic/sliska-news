@@ -231,7 +231,7 @@ var SliskaSim = (function () {
     if (!logged() || !window.actorApi) { acc = null; return Promise.resolve(null); }
     var u = uid(); if (acc && acc.uid === u) return Promise.resolve(acc);
     return actorApi('/gry/me').then(function (d) {
-      acc = { uid: u, best: (d && d.best) || {} };
+      acc = { uid: u, best: (d && d.best) || {} }; achSync();
       /* lokalne rekordy nie są już wysyłane na konto: rekord powstaje tylko z wyniku zatwierdzonego przez serwer */
       return acc;
     }).catch(function () { return null; });
@@ -250,7 +250,7 @@ var SliskaSim = (function () {
   /* rola Właściciela dociąga się po zalogowaniu: gdy zmieni się widoczność GABINA, odśwież widok gier */
   var gabinSeen = window.GabinGame ? GabinGame.owner() : false;
   window.addEventListener('sn:reader', function () { setTimeout(function () { var o = window.GabinGame ? GabinGame.owner() : false; if (o !== gabinSeen) { gabinSeen = o; if (/^#\/gry(\/gabin)?$/.test(location.hash)) window.dispatchEvent(new HashChangeEvent('hashchange')); } }, 400); });
-  window.addEventListener('sn:reader', function () { acc = null; var cg = $('.gp[data-game]'); if (cg) mint(cg.dataset.game); accLoad().then(function () { var b = $('#gry-best'), cur = $('.gp[data-game]'); if (b && cur) b.textContent = fmt(cur.dataset.game, best(cur.dataset.game)); }); });
+  window.addEventListener('sn:reader', function () { acc = null; accAch = null; accAchUid = ''; var cg = $('.gp[data-game]'); if (cg) mint(cg.dataset.game); accLoad().then(function () { var b = $('#gry-best'), cur = $('.gp[data-game]'); if (b && cur) b.textContent = fmt(cur.dataset.game, best(cur.dataset.game)); }); });
 
   /* ---------- najlepsi gracze ---------- */
   function loadTop(g) {
@@ -383,7 +383,9 @@ var SliskaSim = (function () {
       feat(G('krzyzowka'), 'Tydzień #' + weekIndex(), kz ? 'Rozwiązana ✓ – nowa w poniedziałek' : 'Hasło tygodnia czeka na odkrycie.', kz ? 'Zobacz' : 'Rozwiąż') + '</div>' +
       '<h2 class="gh-h">Zręcznościowe</h2><div class="gh-grid">' + ['krople', 'flappy', 'waz', 'slizgawka', 'kregle', 'pojedynek', 'ratunek', 'karny'].map(function (id) { return tile(G(id)); }).join('') + '</div>' +
       '<h2 class="gh-h">Na spokojnie</h2><div class="gh-grid">' + ['drama', 'ukladanka'].map(function (id) { return tile(G(id)); }).join('') + '</div>' +
+      '<div id="gh-meta"></div>' +
       '<nav class="gh-more" aria-label="Śliska strefa"><a href="#/sezon">' + ICO.cup + '<span><b>Ranking sezonu</b><small>Kto zebrał najwięcej XP w tym miesiącu</small></span></a><a href="#/dramy">' + ICO.fire + '<span><b>Osie czasu dram</b><small>Afery krok po kroku</small></span></a></nav></div>';
+    metaBox(); achSync();
     var clicks = 0, kb = $('#gry-hero-k', el);
     kb.addEventListener('click', function () {
       clicks++; kb.classList.remove('is-poke'); void kb.offsetWidth; kb.classList.add('is-poke');
@@ -482,7 +484,8 @@ var SliskaSim = (function () {
       stats.played++;
       if (win) { stats.wins++; stats.dist[st.rows.length - 1]++; stats.streak = stats.last === di - 1 ? stats.streak + 1 : 1; stats.max = Math.max(stats.max, stats.streak); } else stats.streak = 0;
       stats.last = win ? di : -9; lsSet('sn-slizgle-stats', stats); lsSet('sn-slizgle-done-' + di, { win: win, ans: win ? st.rows[st.rows.length - 1] : st.ans });
-      achEval('slizgle', { win: win, tries: st.rows.length, streak: stats.streak, wins: stats.wins, played: stats.played });
+      if (win && st.rows.length === 1) stats.first = (stats.first || 0) + 1; lsSet('sn-slizgle-stats', stats);
+      achEval('slizgle', { win: win, tries: st.rows.length, streak: stats.streak, wins: stats.wins, played: stats.played, first: stats.first || 0 });
       if (win) submit('slizgle', 7 - st.rows.length, false, true); else { var d = load(); d.played = (d.played || 0) + 1; save(d); }
       if (reply && reply.xp && reply.xp.got && window.SnXP) SnXP.gained(reply.xp);
       played('slizgle'); setTimeout(zone, 0);
@@ -558,7 +561,12 @@ var SliskaSim = (function () {
       ['k_set', 'Zestaw bonusów', 'Złap magnes, gumkę i saunę w jednej grze', 'star', function (s) { return s.pw_mag >= 1 && s.pw_shield >= 1 && s.pw_slow >= 1; }],
       ['k_dry', 'Bez pozwu', '40 punktów bez utraty życia', 'check', function (s) { return s.score >= 40 && !(s.lost > 0); }],
       ['k_100', 'Wanna po brzegi', 'Zdobądź 100 punktów', 'trophy', function (s) { return s.score >= 100; }],
-      ['k_200', 'Potop', 'Zdobądź 200 punktów', 'trophy', function (s) { return s.score >= 200; }]
+      ['k_200', 'Potop', 'Zdobądź 200 punktów', 'trophy', function (s) { return s.score >= 200; }],
+      ['k_300', 'Potop stulecia', 'Zdobądź 300 punktów', 'trophy', function (s) { return s.score >= 300; }],
+      ['k_g3', 'Złoty deszcz', 'Złap 3 złote krople w jednej grze', 'star', function (s) { return s.gold >= 3; }],
+      ['k_c50', 'Niezatapialny', 'Złap 50 kropli z rzędu', 'flame', function (s) { return s.combo >= 50; }, true],
+      ['k_500', 'Arka Noego', 'Zdobądź 500 punktów', 'trophy', function (s) { return s.score >= 500; }, true],
+      ['k_life3', 'Serce na dłoni', 'Złap 3 serduszka w jednej grze', 'heart', function (s) { return s.life >= 3; }, true]
     ],
     flappy: [
       ['f_1', 'Pierwszy lot', 'Przeleć przez pierwszy statyw', 'wing', function (s) { return s.score >= 1; }],
@@ -569,7 +577,12 @@ var SliskaSim = (function () {
       ['f_sh', 'Zabezpieczony', 'Złap złotą gumkę', 'shield', function (s) { return s.shield >= 1; }],
       ['f_save', 'Twardziel', 'Gumka pęka za Ciebie przy uderzeniu', 'check', function (s) { return s.shieldsave >= 1; }],
       ['f_drop', 'Zbieracz kropli', 'Złap 5 kropli w jednym locie', 'drop', function (s) { return s.drop >= 5; }],
-      ['f_t', 'Maraton', 'Leć 90 sekund bez uderzenia', 'clock', function (s) { return s.t >= 90; }]
+      ['f_t', 'Maraton', 'Leć 90 sekund bez uderzenia', 'clock', function (s) { return s.t >= 90; }],
+      ['f_75', 'Ponad chmurami', 'Zdobądź 75 punktów', 'trophy', function (s) { return s.score >= 75; }],
+      ['f_d12', 'Kropla w kropli', 'Złap 12 kropli w jednym locie', 'drop', function (s) { return s.drop >= 12; }],
+      ['f_t180', 'Wytrzymały', 'Leć 180 sekund bez uderzenia', 'clock', function (s) { return s.t >= 180; }],
+      ['f_100', 'Setka nad sceną', 'Zdobądź 100 punktów', 'trophy', function (s) { return s.score >= 100; }, true],
+      ['f_sh3', 'Kolekcjoner gumek', 'Złap 3 gumki w jednym locie', 'shield', function (s) { return s.shield >= 3; }, true]
     ],
     slizgawka: [
       ['s_100', 'Pierwsze fale', 'Przepłyń 100 m', 'wing', function (s) { return s.dist >= 100; }],
@@ -582,7 +595,13 @@ var SliskaSim = (function () {
       ['s_save', 'Gumka ratuje', 'Gumka przyjmie za Ciebie uderzenie', 'shield', function (s) { return s.shieldsave >= 1; }],
       ['s_night', 'Nocna zmiana', 'Dopłyń do nocy (400 m)', 'star', function (s) { return s.dist >= 400; }],
       ['s_800', 'Neonowa fala', 'Dopłyń do neonu (800 m)', 'star', function (s) { return s.dist >= 800; }],
-      ['s_1500', 'Legenda fali', 'Przepłyń 1500 m', 'trophy', function (s) { return s.dist >= 1500; }]
+      ['s_1500', 'Legenda fali', 'Przepłyń 1500 m', 'trophy', function (s) { return s.dist >= 1500; }],
+      ['s_r5', 'Skoczek', 'Wjedź na 5 fal-ramp w jednym przejeździe', 'wing', function (s) { return s.ramp >= 5; }],
+      ['s_t3', 'Akrobata', 'Zrób 3 podwójne salta w jednym przejeździe', 'flame', function (s) { return s.dtrick >= 3; }],
+      ['s_d5', 'Ninja pod dronami', 'Prześlizgnij się pod 5 dronami', 'check', function (s) { return s.duck >= 5; }],
+      ['s_2500', 'Poza skalą', 'Przepłyń 2500 m', 'trophy', function (s) { return s.dist >= 2500; }],
+      ['s_4000', 'Koniec mapy', 'Przepłyń 4000 m', 'trophy', function (s) { return s.dist >= 4000; }, true],
+      ['s_t10', 'Cyrkowiec', 'Zrób 10 salt w jednym przejeździe', 'bolt', function (s) { return s.trick >= 10; }, true]
     ],
     pojedynek: [
       ['p_1', 'Pierwsza krew', 'Wygraj pierwszy pojedynek', 'star', function (s) { return s.win >= 1; }],
@@ -591,7 +610,12 @@ var SliskaSim = (function () {
       ['p_s5', 'Seria 5', 'Wygraj 5 pojedynków z rzędu', 'flame', function (s) { return s.streak >= 5; }],
       ['p_l8', 'Poziom 8', 'Dotrzyj do 8. rywala', 'shield', function (s) { return s.level >= 8; }],
       ['p_100', 'Setka', 'Zdobądź 100 punktów', 'trophy', function (s) { return s.score >= 100; }],
-      ['p_250', 'Legenda Zachodu', 'Zdobądź 250 punktów', 'trophy', function (s) { return s.score >= 250; }]
+      ['p_250', 'Legenda Zachodu', 'Zdobądź 250 punktów', 'trophy', function (s) { return s.score >= 250; }],
+      ['p_w10', 'Weteran', 'Wygraj 10 pojedynków w jednej grze', 'star', function (s) { return s.win >= 10; }],
+      ['p_s10', 'Seria 10', 'Wygraj 10 pojedynków z rzędu', 'flame', function (s) { return s.streak >= 10; }],
+      ['p_400', 'Rewolwerowiec', 'Zdobądź 400 punktów', 'trophy', function (s) { return s.score >= 400; }],
+      ['p_600', 'Duch Dzikiego Zachodu', 'Zdobądź 600 punktów', 'trophy', function (s) { return s.score >= 600; }, true],
+      ['p_f3', 'Szybszy od cienia', 'Strzel w mniej niż 200 ms trzy razy w jednej grze', 'bolt', function (s) { return s.fast >= 3; }, true]
     ],
     ratunek: [
       ['r_1', 'Pierwszy ratunek', 'Złap pierwszą Knagę', 'star', function (s) { return s.catch >= 1; }],
@@ -599,7 +623,12 @@ var SliskaSim = (function () {
       ['r_c10', 'Seria 10', 'Złap 10 Knag z rzędu', 'bolt', function (s) { return s.combo >= 10; }],
       ['r_c25', 'Seria 25', 'Złap 25 Knag z rzędu', 'flame', function (s) { return s.combo >= 25; }],
       ['r_100', 'Ratownik roku', 'Zdobądź 100 punktów', 'trophy', function (s) { return s.score >= 100; }],
-      ['r_200', 'Bohater plaży', 'Zdobądź 200 punktów', 'trophy', function (s) { return s.score >= 200; }]
+      ['r_200', 'Bohater plaży', 'Zdobądź 200 punktów', 'trophy', function (s) { return s.score >= 200; }],
+      ['r_300', 'Legenda plaży', 'Zdobądź 300 punktów', 'trophy', function (s) { return s.score >= 300; }],
+      ['r_c50', 'Seria 50', 'Złap 50 Knag z rzędu', 'flame', function (s) { return s.combo >= 50; }],
+      ['r_k50', 'Pół setki uratowanych', 'Uratuj 50 Knag w jednej grze', 'star', function (s) { return s.catch >= 50; }],
+      ['r_500', 'Aqua Gwardia', 'Zdobądź 500 punktów', 'trophy', function (s) { return s.score >= 500; }, true],
+      ['r_j3', 'Fan meduz', 'Złap 3 meduzy w jednej grze', 'drop', function (s) { return s.jelly >= 3; }, true]
     ],
     karny: [
       ['k_1', 'Pierwszy gol', 'Strzel pierwszą bramkę', 'star', function (s) { return s.goal >= 1; }],
@@ -608,7 +637,13 @@ var SliskaSim = (function () {
       ['k_corner', 'Okienko', 'Strzel gola w górny róg', 'bolt', function (s) { return s.corner >= 1; }],
       ['k_s5', 'Seria 5', 'Strzel 5 goli z rzędu', 'flame', function (s) { return s.streak >= 5; }],
       ['k_100', 'Setka', 'Zdobądź 100 punktów', 'trophy', function (s) { return s.score >= 100; }],
-      ['k_250', 'Król jedenastek', 'Zdobądź 250 punktów', 'trophy', function (s) { return s.score >= 250; }]
+      ['k_250', 'Król jedenastek', 'Zdobądź 250 punktów', 'trophy', function (s) { return s.score >= 250; }],
+      ['k_g10', 'Dziesiątka goli', 'Strzel 10 goli w jednej grze', 'star', function (s) { return s.goal >= 10; }],
+      ['k_s10', 'Seria 10', 'Strzel 10 goli z rzędu', 'flame', function (s) { return s.streak >= 10; }],
+      ['k_c3', 'Snajper', 'Strzel 3 gole w górny róg w jednej grze', 'bolt', function (s) { return s.corner >= 3; }],
+      ['k_500', 'Złoty But', 'Zdobądź 500 punktów', 'trophy', function (s) { return s.score >= 500; }, true],
+      ['k_p3', 'Pech', 'Trafij w słupek 3 razy w jednej grze', 'drop', function (s) { return s.post >= 3; }, true],
+      ['k_sv5', 'Bramkarz w formie', 'Daj się obronić 5 razy w jednej grze', 'check', function (s) { return s.save >= 5; }, true]
     ],
     kregle: [
       ['g_1', 'Pierwszy rzut', 'Zbij pierwszy kręgiel', 'star', function (s) { return s.pins >= 1; }],
@@ -619,7 +654,12 @@ var SliskaSim = (function () {
       ['g_gut', 'Rynna', 'Wrzuć kulę do rynny (nie szkodzi)', 'drop', function (s) { return s.gutter >= 1; }],
       ['g_100', 'Setka', 'Zdobądź 100 punktów', 'trophy', function (s) { return s.score >= 100; }],
       ['g_150', 'Dobry wynik', 'Zdobądź 150 punktów', 'trophy', function (s) { return s.score >= 150; }],
-      ['g_200', 'Mistrz toru', 'Zdobądź 200 punktów', 'trophy', function (s) { return s.score >= 200; }]
+      ['g_200', 'Mistrz toru', 'Zdobądź 200 punktów', 'trophy', function (s) { return s.score >= 200; }],
+      ['g_230', 'Perfekcyjny', 'Zdobądź 230 punktów', 'trophy', function (s) { return s.score >= 230; }],
+      ['g_sp3', 'Mistrz spare\'ów', 'Zrób 3 spare\'y w jednej grze', 'check', function (s) { return s.spare >= 3; }],
+      ['g_st5', 'Pięć strike\'ów', 'Zrób 5 strike\'ów w jednej grze', 'bolt', function (s) { return s.strike >= 5; }],
+      ['g_gut3', 'Król rynny', 'Wrzuć kulę do rynny 3 razy w jednej grze', 'drop', function (s) { return s.gutter >= 3; }, true],
+      ['g_t6', 'Szóstka z rzędu', 'Zrób 6 strike\'ów z rzędu', 'flame', function (s) { return s.turkey >= 6; }, true]
     ],
     waz: [
       ['w_mic', 'Pierwszy mikrofon', 'Zjedz pierwszy mikrofon', 'mic', function (s) { return s.mic >= 1; }],
@@ -630,7 +670,28 @@ var SliskaSim = (function () {
       ['w_l20', 'Naprawdę długa', 'Dojdź do 40 cm', 'rule', function (s) { return s.len >= 20; }],
       ['w_l35', 'Rekordzistka długości', 'Dojdź do 70 cm', 'trophy', function (s) { return s.len >= 35; }],
       ['w_obs', 'Pełna scena', 'Przeżyj, gdy na scenie stoi 5 kolumn', 'shield', function (s) { return s.obs >= 5; }],
-      ['w_40', 'Lista featów', 'Zdobądź 40 punktów', 'flame', function (s) { return s.score >= 40; }]
+      ['w_40', 'Lista featów', 'Zdobądź 40 punktów', 'flame', function (s) { return s.score >= 40; }],
+      ['w_100', 'Setka', 'Zdobądź 100 punktów', 'trophy', function (s) { return s.score >= 100; }],
+      ['w_g3', 'Złota rączka', 'Zjedz 3 złote mikrofony w jednej grze', 'star', function (s) { return s.gold >= 3; }],
+      ['w_l50', 'Anakonda', 'Dojdź do 100 cm', 'rule', function (s) { return s.len >= 50; }],
+      ['w_obs7', 'Labirynt', 'Przeżyj, gdy na scenie stoi 7 kolumn', 'shield', function (s) { return s.obs >= 7; }, true],
+      ['w_t180', 'Wąż-maratończyk', 'Graj 180 sekund bez porażki', 'clock', function (s) { return s.t >= 180; }, true]
+    ],
+    meta: [
+      ['m_3', 'Rozgrzewka', 'Zagraj w 3 różne gry', 'star', function (s) { return s.games >= 3; }],
+      ['m_6', 'Zwiedzający', 'Zagraj w 6 różnych gier', 'star', function (s) { return s.games >= 6; }],
+      ['m_all', 'Pełny zestaw', 'Zagraj we wszystkie gry z rekordem', 'trophy', function (s) { return s.games >= s.gamesAll; }],
+      ['m_t1', 'Trzy gwiazdki', 'Zdobądź 3 gwiazdki w dowolnej grze', 'star', function (s) { return s.three >= 1; }],
+      ['m_t5', 'Konstelacja', 'Zdobądź 3 gwiazdki w 5 grach', 'flame', function (s) { return s.three >= 5; }],
+      ['m_a10', 'Kolekcjoner', 'Zdobądź 10 osiągnięć', 'trophy', function (s) { return s.total >= 10; }],
+      ['m_a30', 'Kolekcjoner PRO', 'Zdobądź 30 osiągnięć', 'trophy', function (s) { return s.total >= 30; }],
+      ['m_a60', 'Muzeum osiągnięć', 'Zdobądź 60 osiągnięć', 'trophy', function (s) { return s.total >= 60; }],
+      ['m_p100', 'Setka partii', 'Rozegraj 100 gier', 'clock', function (s) { return s.played >= 100; }],
+      ['m_h1', 'Tropiciel', 'Odkryj pierwsze ukryte osiągnięcie', 'lock', function (s) { return s.hid >= 1; }, true],
+      ['m_h5', 'Łowca sekretów', 'Odkryj 5 ukrytych osiągnięć', 'lock', function (s) { return s.hid >= 5; }, true],
+      ['m_night', 'Nocny marek', 'Zagraj w gry po drugiej w nocy', 'clock', function (s) { return s.night; }, true],
+      ['m_tall', 'Pełne niebo', 'Zdobądź 3 gwiazdki we wszystkich grach zręcznościowych', 'trophy', function (s) { return s.three >= s.threeAll; }, true],
+      ['m_p500', 'Uzależniony', 'Rozegraj 500 gier', 'flame', function (s) { return s.played >= 500; }, true]
     ],
     slizgle: [
       ['z_win', 'Pierwsza krew', 'Zgadnij słowo dnia', 'drop', function (s) { return s.win; }],
@@ -639,26 +700,78 @@ var SliskaSim = (function () {
       ['z_6', 'Na styk', 'Wygraj w ostatniej, 6. próbie', 'shield', function (s) { return s.win && s.tries === 6; }],
       ['z_s3', 'Trzy dni z rzędu', 'Seria 3 wygranych dni', 'flame', function (s) { return s.streak >= 3; }],
       ['z_s7', 'Tydzień bez wpadki', 'Seria 7 wygranych dni', 'trophy', function (s) { return s.streak >= 7; }],
-      ['z_w10', 'Słownik Śliskiej', 'Wygraj 10 razy', 'rule', function (s) { return s.wins >= 10; }]
+      ['z_w10', 'Słownik Śliskiej', 'Wygraj 10 razy', 'rule', function (s) { return s.wins >= 10; }],
+      ['z_s14', 'Dwa tygodnie', 'Seria 14 wygranych dni', 'flame', function (s) { return s.streak >= 14; }],
+      ['z_w25', 'Ćwierć setki', 'Wygraj 25 razy', 'rule', function (s) { return s.wins >= 25; }],
+      ['z_p20', 'Stały bywalec', 'Zagraj 20 razy', 'clock', function (s) { return s.played >= 20; }],
+      ['z_s30', 'Miesiąc słownikowca', 'Seria 30 wygranych dni', 'trophy', function (s) { return s.streak >= 30; }, true],
+      ['z_w50', 'Pół setki', 'Wygraj 50 razy', 'trophy', function (s) { return s.wins >= 50; }, true],
+      ['z_1h', 'Strzał w dziesiątkę', 'Zgadnij za pierwszym razem 2 razy', 'star', function (s) { return s.first >= 2; }, true]
     ],
     krzyzowka: [
       ['x_1', 'Pierwsze hasło', 'Rozwiąż krzyżówkę tygodnia', 'rule', function (s) { return s.solved >= 1; }],
       ['x_3', 'Cierpliwy detektyw', 'Rozwiąż 3 krzyżówki', 'clock', function (s) { return s.solved >= 3; }],
       ['x_10', 'Mistrz haseł', 'Rozwiąż 10 krzyżówek', 'trophy', function (s) { return s.solved >= 10; }],
-      ['x_arch', 'Archeolog', 'Rozwiąż krzyżówkę z archiwum', 'star', function (s) { return s.arch >= 1; }]
+      ['x_arch', 'Archeolog', 'Rozwiąż krzyżówkę z archiwum', 'star', function (s) { return s.arch >= 1; }],
+      ['x_a5', 'Kolekcjoner archiwum', 'Rozwiąż 5 krzyżówek z archiwum', 'star', function (s) { return s.arch >= 5; }],
+      ['x_25', 'Krzyżówkowy maniak', 'Rozwiąż 25 krzyżówek', 'trophy', function (s) { return s.solved >= 25; }, true],
+      ['x_a15', 'Historyk Śliskiej', 'Rozwiąż 15 krzyżówek z archiwum', 'trophy', function (s) { return s.arch >= 15; }, true]
     ],
     ukladanka: [
       ['u_1', 'Pierwszy obrazek', 'Ułóż dowolną układankę', 'star', function (s) { return s.done; }],
       ['u_4', 'Czwórka', 'Ułóż układankę 4×4', 'rule', function (s) { return s.done && s.n >= 4; }],
       ['u_5', 'Pięć na pięć', 'Ułóż układankę 5×5', 'trophy', function (s) { return s.done && s.n >= 5; }],
       ['u_gold', 'Złoty medal', 'Ułóż w limicie ruchów na złoto', 'flame', function (s) { return s.done && s.gold; }],
-      ['u_fast', 'Błyskawica', 'Ułóż w mniej niż 60 sekund', 'bolt', function (s) { return s.done && s.sec < 60; }]
+      ['u_fast', 'Błyskawica', 'Ułóż w mniej niż 60 sekund', 'bolt', function (s) { return s.done && s.sec < 60; }],
+      ['u_f30', 'Błysk', 'Ułóż układankę 4×4 lub większą w mniej niż 30 sekund', 'bolt', function (s) { return s.done && s.n >= 4 && s.sec < 30; }],
+      ['u_f15', 'Człowiek-robot', 'Ułóż układankę 4×4 lub większą w mniej niż 15 sekund', 'bolt', function (s) { return s.done && s.n >= 4 && s.sec < 15; }, true],
+      ['u_g5', 'Perfekcjonista', 'Ułóż układankę 5×5 na złoty medal', 'flame', function (s) { return s.done && s.n >= 5 && s.gold; }, true]
     ]
   };
-  function achGot(gid) { var d = load(); return ((d.ach || {})[gid]) || []; }
+  /* osiągnięcia zalogowanego gracza leżą na koncie (serwer); bez logowania – w przeglądarce. Przy pierwszym logowaniu lokalne przechodzą na konto. */
+  var accAch = null, accAchUid = '';
+  function achGot(gid) { if (logged() && accAch) return accAch[gid] || []; var d = load(); return ((d.ach || {})[gid]) || []; }
+  function achAdd(gid, ids) {
+    if (!ids.length) return;
+    if (logged() && accAch) { accAch[gid] = (accAch[gid] || []).concat(ids.filter(function (i) { return (accAch[gid] || []).indexOf(i) < 0; })); try { actorApi('/gry/ach', { method: 'POST', body: JSON.stringify({ ids: ids.map(function (i) { return gid + ':' + i; }) }) }).catch(function () {}); } catch (e) { /* ignoruj */ } return; }
+    var d = load(), got = (d.ach = d.ach || {}), arr = (got[gid] = got[gid] || []); ids.forEach(function (i) { if (arr.indexOf(i) < 0) arr.push(i); }); save(d);
+  }
+  function achSync() {
+    if (!logged() || !window.actorApi) { accAch = null; accAchUid = ''; return Promise.resolve(); }
+    var u = uid(); if (accAch && accAchUid === u) return Promise.resolve();
+    return actorApi('/gry/ach').then(function (r) {
+      var m = {}; ((r && r.ach) || []).forEach(function (k) { var p = k.split(':'); (m[p[0]] = m[p[0]] || []).push(p[1]); });
+      var d = load(), loc = d.ach || {}, up = [];
+      Object.keys(loc).forEach(function (g) { (loc[g] || []).forEach(function (i) { if (!ACHS[g] || (m[g] || []).indexOf(i) >= 0) return; (m[g] = m[g] || []).push(i); up.push(g + ':' + i); }); });
+      accAch = m; accAchUid = u;
+      if (up.length) { try { actorApi('/gry/ach', { method: 'POST', body: JSON.stringify({ ids: up.slice(0, 60) }) }).catch(function () {}); } catch (e) { /* ignoruj */ } }
+      if (d.ach) { delete d.ach; save(d); }
+      Object.keys(ACHS).forEach(function (g) { if ($('#gry-ach') && $('.gp[data-game="' + g + '"]')) achRefresh(g); });
+      metaBox(); metaCheck();
+    }).catch(function () {});
+  }
+  /* osiągnięcia ogólne (cały zestaw gier) */
+  function metaStats() {
+    var d = load(), s = { games: 0, gamesAll: GAMES.filter(function (g) { return !g.secret && !g.off && STARS[g.id]; }).length, three: 0, threeAll: Object.keys(STARS).length, total: 0, hid: 0, played: d.played || 0, night: false };
+    GAMES.forEach(function (g) { if (STARS[g.id] && best(g.id) > 0) s.games++; });
+    Object.keys(STARS).forEach(function (g) { var b = best(g); if (b && (g === 'ukladanka' ? false : b >= STARS[g][2])) s.three++; });
+    Object.keys(ACHS).forEach(function (g) { if (g === 'meta') return; var got = achGot(g); got.forEach(function (id) { s.total++; var a = ACHS[g].filter(function (x) { return x[0] === id; })[0]; if (a && a[5]) s.hid++; }); });
+    var h = new Date().getHours(); s.night = h >= 2 && h < 5;
+    return s;
+  }
+  function metaCheck() {
+    if (!ACHS.meta) return;
+    var s = metaStats(), got = achGot('meta'), add = ACHS.meta.filter(function (a) { return got.indexOf(a[0]) < 0 && a[4](s); });
+    if (!add.length) return;
+    achAdd('meta', add.map(function (a) { return a[0]; }));
+    add.forEach(function (a, i) { setTimeout(function () { toast('🏆 ' + a[1]); }, 1200 + i * 1800); });
+    metaBox();
+  }
+  function metaBox() { var b = $('#gh-meta'); if (b) b.innerHTML = metaInner(); }
+  function metaInner() { var all = 0, got = 0; Object.keys(ACHS).forEach(function (g) { all += ACHS[g].length; got += achGot(g).length; }); return '<h2 class="gh-h">Osiągnięcia <small>' + got + '/' + all + '</small></h2><div class="gp-box ach-box"><h3>Ogólne <small>' + achGot('meta').length + '/' + ACHS.meta.length + '</small></h3><ul class="gp-ach">' + achItems('meta') + '</ul></div>'; }
   function achItems(gid) {
     var got = achGot(gid);
-    return ACHS[gid].map(function (a) { var on = got.indexOf(a[0]) >= 0; return '<li class="' + (on ? 'is-on' : '') + '"><span class="ach-i">' + aIcon(on ? a[3] : 'lock', 17) + '</span><div><b>' + a[1] + '</b><small>' + a[2] + '</small></div></li>'; }).join('');
+    return ACHS[gid].map(function (a) { var on = got.indexOf(a[0]) >= 0, hid = a[5] && !on; return '<li class="' + (on ? 'is-on' : '') + (hid ? ' is-hidden' : '') + '"><span class="ach-i">' + aIcon(on ? a[3] : 'lock', 17) + '</span><div><b>' + (hid ? '???' : a[1]) + '</b><small>' + (hid ? 'Ukryte osiągnięcie – odkryj je grając' : a[2]) + '</small></div></li>'; }).join('');
   }
   function achBox(gid) {
     var got = achGot(gid).length;
@@ -667,10 +780,10 @@ var SliskaSim = (function () {
   /** Osiągnięcia dla gier bez silnika canvas (Ślizgle, Krzyżówka, Układanka): ocena po zakończeniu rundy. */
   function achEval(gid, s) {
     var list = ACHS[gid]; if (!list) return;
-    var d = load(), got = (d.ach = d.ach || {}), arr = (got[gid] = got[gid] || []), add = [];
-    list.forEach(function (a) { if (arr.indexOf(a[0]) < 0 && a[4](s)) { arr.push(a[0]); add.push(a); } });
-    if (!add.length) return; save(d);
-    add.forEach(function (a, i) { setTimeout(function () { toast('🏆 ' + a[1]); }, 600 + i * 1800); }); achRefresh(gid);
+    var arr = achGot(gid), add = [];
+    list.forEach(function (a) { if (arr.indexOf(a[0]) < 0 && a[4](s)) add.push(a); });
+    if (!add.length) { metaCheck(); return; } achAdd(gid, add.map(function (a) { return a[0]; }));
+    add.forEach(function (a, i) { setTimeout(function () { toast('🏆 ' + a[1]); }, 600 + i * 1800); }); achRefresh(gid); metaCheck();
   }
   function achRefresh(gid) { var u = $('#gry-ach'), c = $('#gry-ach-c'); if (u) u.innerHTML = achItems(gid); if (c) c.textContent = achGot(gid).length + '/' + ACHS[gid].length; }
 
@@ -702,10 +815,10 @@ var SliskaSim = (function () {
       mx: function (k, v) { if (!(api.stats[k] >= v)) { api.stats[k] = v; api.check(); } },
       check: function () {
         var list = ACHS[g.id]; if (!list) return; var s = api.stats; s.score = api.score; s.t = api.t;
-        var d = load(), got = (d.ach = d.ach || {}), arr = (got[g.id] = got[g.id] || []), add = [];
-        list.forEach(function (a) { if (arr.indexOf(a[0]) < 0 && a[4](s)) { arr.push(a[0]); add.push(a); } });
-        if (!add.length) return; save(d);
-        add.forEach(function (a) { api.newAch.push(a); toast('🏆 ' + a[1]); }); achRefresh(g.id);
+        var arr = achGot(g.id), add = [];
+        list.forEach(function (a) { if (arr.indexOf(a[0]) < 0 && a[4](s)) add.push(a); });
+        if (!add.length) return; achAdd(g.id, add.map(function (a) { return a[0]; }));
+        add.forEach(function (a) { api.newAch.push(a); toast('🏆 ' + a[1]); }); achRefresh(g.id); metaCheck();
       },
       setScore: function (v) { api.score = v; $('#gry-score').textContent = v; var ms = Math.round(api.t * 1000); if (api.tl && (api.tl.length === 0 || ms - api._ls >= 400)) { api.tl.push([ms, v]); api._ls = ms; } api.check(); },
       setLives: function (n) { var l = $('#gry-lives'); if (l) l.textContent = n > 0 ? (opts.lifeIcon || '💧').repeat(n) : '—'; },
