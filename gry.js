@@ -1664,7 +1664,17 @@ var SliskaSim = (function () {
     function pick() { art = arts.length ? arts[Math.floor(Math.random() * Math.min(arts.length, 24))] : null; }
     function solvable(a) { var inv = 0, f = a.filter(function (x) { return x !== N * N - 1; }); for (var i = 0; i < f.length; i++) for (var j = i + 1; j < f.length; j++) if (f[i] > f[j]) inv++; if (N % 2) return inv % 2 === 0; var row = N - Math.floor(a.indexOf(N * N - 1) / N); return (inv + row) % 2 === 1; }
     function start() {
-      do { tiles = Array.from({ length: N * N }, function (_, i) { return i; }).sort(function () { return Math.random() - .5; }); } while (!solvable(tiles) || tiles.every(function (v, i) { return v === i; }));
+      /* mieszanie = losowy spacer pustego pola od układu wzorcowego: zawsze da się ułożyć, a trudność jest łagodna (3×3 ≈ 16, 4×4 ≈ 36, 5×5 ≈ 50 ruchów od końca) */
+      do {
+        tiles = Array.from({ length: N * N }, function (_, i) { return i; });
+        var e = N * N - 1, prev = -1, steps = { 3: 16, 4: 36, 5: 50 }[N] || 40;
+        for (var k = 0; k < steps; k++) {
+          var nb = [], r = Math.floor(e / N), c = e % N;
+          if (r > 0) nb.push(e - N); if (r < N - 1) nb.push(e + N); if (c > 0) nb.push(e - 1); if (c < N - 1) nb.push(e + 1);
+          nb = nb.filter(function (x) { return x !== prev; });
+          var to = nb[Math.floor(Math.random() * nb.length)]; tiles[e] = tiles[to]; tiles[to] = N * N - 1; prev = e; e = to;
+        }
+      } while (tiles.every(function (v, i) { return v === i; }) || tiles.filter(function (v, i) { return v !== i; }).length < 4);
       mint('ukladanka'); moves = 0; t0 = 0; tlU = []; tu0 = Date.now(); clearInterval(timer); $('#uk-t').textContent = '0:00'; $('#uk-done').hidden = true; $('#uk-board').classList.remove('is-done'); draw();
       $('#uk-ghost').style.backgroundImage = 'url("' + src() + '")';
       $('#uk-art').innerHTML = art ? 'Zdjęcie z artykułu: <a href="#/artykul/' + encodeURIComponent(art.id) + '">' + esc(art.title) + '</a>' : 'Brak zdjęć z artykułów – układamy Knagę.';
@@ -1678,7 +1688,7 @@ var SliskaSim = (function () {
       }).join('');
       $('#uk-m').textContent = moves; var bb = (load().ukBest || {})[N]; $('#uk-b').textContent = bb ? bb : '–';
     }
-    var PAR = { 3: [35, 60], 4: [110, 180], 5: [240, 380] };
+    var PAR = { 3: [28, 50], 4: [80, 140], 5: [140, 240] };
     $('#uk-board').addEventListener('click', function (e) {
       var b = e.target.closest('[data-i]'); if (!b) return; var i = +b.dataset.i, e0 = tiles.indexOf(N * N - 1);
       var ri = Math.floor(i / N), re = Math.floor(e0 / N); if (i === e0 || (ri !== re && i % N !== e0 % N)) return;
