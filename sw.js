@@ -1,6 +1,6 @@
 /* Śliska News – prosty service worker: strona działa też przy słabym zasięgu.
    Strategia: najpierw sieć (zawsze świeża wersja), a gdy brak internetu – ostatnia zapamiętana kopia. */
-const CACHE = self.location.hostname === 'news.sliska.pl' ? 'sliska-news-v46' : 'sliska-news-dev-v45';
+const CACHE = self.location.hostname === 'news.sliska.pl' ? 'sliska-news-v47' : 'sliska-news-dev-v45';
 
 const NEWS_HOST = self.location.hostname === 'news.sliska.pl';
 const BASE = NEWS_HOST ? '/' : '/news/', API = NEWS_HOST ? 'https://api.sliska.pl' : '/news/api';

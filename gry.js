@@ -311,7 +311,7 @@ var SliskaSim = (function () {
       /* układ pionowy: karta z wynikiem dosunięta do stopki, maskotka dostaje całe wolne miejsce nad nią */
       var title = o.title || '', rows = o.rows && o.rows.length ? o.rows : null, n = rows ? Math.max.apply(null, rows.map(function (r) { return r.length; })) : 0;
       var gap = 12, cell = rows ? Math.min(post ? (rows.length > 4 ? 66 : 84) : (rows.length > 4 ? 86 : 104), Math.floor(640 / n) - 12) : 0;
-      var cardH = rows ? 150 + rows.length * (cell + gap) + (o.lines && o.lines.length ? 84 : 28) : 560, cy = (post ? 1070 : 1590) - cardH;
+      var cardH = rows ? 150 + rows.length * (cell + gap) + (o.lines && o.lines.length ? 84 : 28) : (post ? 500 : 560), cy = (post ? 1070 : 1590) - cardH;
       var my = EY + (post ? 74 : 100), ms = Math.min(470, cy - my - 24);
       if (im && ms >= (post ? 140 : 220)) { var gl = x.createRadialGradient(W / 2, my + ms / 2, 20, W / 2, my + ms / 2, ms * 0.7); gl.addColorStop(0, 'rgba(255,255,255,.34)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gl; x.fillRect(0, my - 60, W, ms + 120); x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 50; x.shadowOffsetY = 24; x.drawImage(im, (W - ms) / 2, my, ms, ms); x.shadowColor = 'transparent'; x.shadowBlur = 0; x.shadowOffsetY = 0; }
       rr(90, cy, W - 180, cardH, 64); x.fillStyle = 'rgba(255,255,255,.15)'; x.fill(); x.strokeStyle = 'rgba(255,255,255,.34)'; x.lineWidth = 3; x.stroke();
@@ -322,8 +322,8 @@ var SliskaSim = (function () {
         rows.forEach(function (row, ri) { row.forEach(function (col, ci) { var px = ox + ci * (cell + gap), py = oy + ri * (cell + gap); rr(px, py, cell, cell, 20); x.fillStyle = col === 'ok' ? '#22c55e' : col === 'in' ? '#f5b82e' : 'rgba(0,0,0,.28)'; x.fill(); if (col === 'ok' || col === 'in') { var hg = x.createLinearGradient(0, py, 0, py + cell); hg.addColorStop(0, 'rgba(255,255,255,.3)'); hg.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = hg; rr(px, py, cell, cell, 20); x.fill(); } }); });
         (o.lines || []).forEach(function (l, i) { x.fillStyle = 'rgba(255,255,255,.9)'; x.font = '700 38px ' + F; x.fillText(l, W / 2, oy + rows.length * (cell + gap) + 44 + i * 50); });
       } else {
-        var bigS = String(o.big == null ? '' : o.big); x.fillStyle = '#fff'; x.font = '800 ' + (bigS.length > 4 ? 210 : bigS.length > 3 ? 250 : 300) + 'px ' + F; x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = 36; x.shadowOffsetY = 12; x.fillText(bigS, W / 2, cy + 400); x.shadowColor = 'transparent'; x.shadowBlur = 0; x.shadowOffsetY = 0;
-        if (o.unit) { x.fillStyle = 'rgba(255,255,255,.88)'; x.font = '800 52px ' + F; x.fillText(String(o.unit).toUpperCase(), W / 2, cy + 490); }
+        var bigS = String(o.big == null ? '' : o.big); x.fillStyle = '#fff'; x.font = '800 ' + (bigS.length > 4 ? 210 : bigS.length > 3 ? 250 : 300) + 'px ' + F; x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = 36; x.shadowOffsetY = 12; x.fillText(bigS, W / 2, cy + (post ? 350 : 400)); x.shadowColor = 'transparent'; x.shadowBlur = 0; x.shadowOffsetY = 0;
+        if (o.unit) { x.fillStyle = 'rgba(255,255,255,.88)'; x.font = '800 52px ' + F; x.fillText(String(o.unit).toUpperCase(), W / 2, cy + (post ? 440 : 490)); }
       }
       /* stopka */
       var fy = post ? 1120 : 1640; rr(W / 2 - 340, fy, 680, 104, 52); x.fillStyle = '#fff'; x.fill();
