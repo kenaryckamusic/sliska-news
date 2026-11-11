@@ -276,13 +276,20 @@ var SliskaSim = (function () {
       } catch (e) { res(null); }
     });
   }
-  /* Karta 9:16 (1080×1920) do relacji / stories. Treść trzymamy w bezpiecznym polu (poza górnymi ~250 px i dolnymi ~300 px). */
+  function logoImg() {
+    return new Promise(function (res) {
+      var im = new Image(); im.onload = function () { res(im); }; im.onerror = function () { res(null); };
+      im.src = 'logo-biale.svg'; setTimeout(function () { res(null); }, 2500);
+    });
+  }
+  /* Karta do udostępniania: o.fmt 'post' = 1080×1350 (post 4:5), domyślnie 1080×1920 (relacja / stories). Treść trzymamy w bezpiecznym polu (poza górnymi ~250 px i dolnymi ~300 px). */
   function shareCard(o) {
     return Promise.all([
       (document.fonts && document.fonts.load ? Promise.race([document.fonts.load('800 80px Figtree'), new Promise(function (r) { setTimeout(r, 800); })]) : Promise.resolve()).catch(function () {}),
-      mascotImg(o.knaga)
+      mascotImg(o.knaga),
+      logoImg()
     ]).then(function (pre) {
-      var im = pre[1], W = 1080, H = 1920, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var im = pre[1], lg = pre[2], post = o.fmt === 'post', W = 1080, H = post ? 1350 : 1920, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var x = cv.getContext('2d'), F = 'Figtree, "Segoe UI", system-ui, -apple-system, sans-serif', c = o.c || ['#2b0f55', '#c0164a'];
       var rr = function (px, py, w, h, r) { x.beginPath(); x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h, r); x.arcTo(px + w, py + h, px, py + h, r); x.arcTo(px, py + h, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath(); };
       /* tło: gradient + poświaty + delikatna siatka kropek */
@@ -293,18 +300,20 @@ var SliskaSim = (function () {
       x.fillStyle = 'rgba(255,255,255,.07)'; for (var yy = 40; yy < H; yy += 56) for (var xx = 40 + ((yy / 56) % 2) * 28; xx < W; xx += 56) { x.beginPath(); x.arc(xx, yy, 3, 0, 6.3); x.fill(); }
       x.strokeStyle = 'rgba(255,255,255,.09)'; x.lineWidth = 46; x.beginPath(); x.arc(W + 40, 420, 380, 0, 6.3); x.stroke(); x.beginPath(); x.arc(-60, 1240, 300, 0, 6.3); x.stroke();
       x.textAlign = 'center'; x.textBaseline = 'alphabetic';
-      /* logo */
-      x.font = '800 74px ' + F; x.textAlign = 'left'; var w1 = x.measureText('śliska').width, w2 = x.measureText('news').width, bx = (W - w1 - w2) / 2;
-      x.fillStyle = '#fff'; x.fillText('śliska', bx, 330); x.fillStyle = '#ff4d6d'; x.fillText('news', bx + w1, 330); x.textAlign = 'center';
+      /* logo: prawdziwe logo śliskanews (plik logo-biale.svg); gdyby się nie wczytało – napis */
+      var LY = post ? 120 : 250, LH = post ? 86 : 118;
+      if (lg) { var lw = LH * (lg.naturalWidth && lg.naturalHeight ? lg.naturalWidth / lg.naturalHeight : 5.7); x.shadowColor = 'rgba(0,0,0,.3)'; x.shadowBlur = 18; x.drawImage(lg, (W - lw) / 2, LY, lw, LH); x.shadowColor = 'transparent'; x.shadowBlur = 0; }
+      else { x.font = '800 74px ' + F; x.textAlign = 'left'; var w1 = x.measureText('śliska').width, w2 = x.measureText('news').width, bx = (W - w1 - w2) / 2; x.fillStyle = '#fff'; x.fillText('śliskanews', bx, LY + 80); x.textAlign = 'center'; }
+      var EY = LY + LH + 40;
       var eb = String(o.eyebrow || '').toUpperCase(); x.font = '800 30px ' + F; var ew = x.measureText(eb).width + 64 + eb.length * 3;
-      rr((W - ew) / 2, 370, ew, 62, 31); x.fillStyle = 'rgba(0,0,0,.28)'; x.fill(); x.strokeStyle = 'rgba(255,255,255,.28)'; x.lineWidth = 2; x.stroke();
-      x.fillStyle = '#fff'; x.fillText(eb.split('').join(' '), W / 2, 412);
+      rr((W - ew) / 2, EY, ew, 62, 31); x.fillStyle = 'rgba(0,0,0,.28)'; x.fill(); x.strokeStyle = 'rgba(255,255,255,.28)'; x.lineWidth = 2; x.stroke();
+      x.fillStyle = '#fff'; x.fillText(eb.split('').join(' '), W / 2, EY + 42);
       /* układ pionowy: karta z wynikiem dosunięta do stopki, maskotka dostaje całe wolne miejsce nad nią */
       var title = o.title || '', rows = o.rows && o.rows.length ? o.rows : null, n = rows ? Math.max.apply(null, rows.map(function (r) { return r.length; })) : 0;
-      var gap = 12, cell = rows ? Math.min(rows.length > 4 ? 86 : 104, Math.floor(640 / n) - 12) : 0;
-      var cardH = rows ? 150 + rows.length * (cell + gap) + (o.lines && o.lines.length ? 84 : 28) : 560, cy = 1590 - cardH;
-      var my = 470, ms = Math.min(470, cy - my - 24);
-      if (im && ms >= 220) { var gl = x.createRadialGradient(W / 2, my + ms / 2, 20, W / 2, my + ms / 2, ms * 0.7); gl.addColorStop(0, 'rgba(255,255,255,.34)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gl; x.fillRect(0, my - 60, W, ms + 120); x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 50; x.shadowOffsetY = 24; x.drawImage(im, (W - ms) / 2, my, ms, ms); x.shadowColor = 'transparent'; x.shadowBlur = 0; x.shadowOffsetY = 0; }
+      var gap = 12, cell = rows ? Math.min(post ? (rows.length > 4 ? 66 : 84) : (rows.length > 4 ? 86 : 104), Math.floor(640 / n) - 12) : 0;
+      var cardH = rows ? 150 + rows.length * (cell + gap) + (o.lines && o.lines.length ? 84 : 28) : 560, cy = (post ? 1070 : 1590) - cardH;
+      var my = EY + (post ? 74 : 100), ms = Math.min(470, cy - my - 24);
+      if (im && ms >= (post ? 140 : 220)) { var gl = x.createRadialGradient(W / 2, my + ms / 2, 20, W / 2, my + ms / 2, ms * 0.7); gl.addColorStop(0, 'rgba(255,255,255,.34)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gl; x.fillRect(0, my - 60, W, ms + 120); x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 50; x.shadowOffsetY = 24; x.drawImage(im, (W - ms) / 2, my, ms, ms); x.shadowColor = 'transparent'; x.shadowBlur = 0; x.shadowOffsetY = 0; }
       rr(90, cy, W - 180, cardH, 64); x.fillStyle = 'rgba(255,255,255,.15)'; x.fill(); x.strokeStyle = 'rgba(255,255,255,.34)'; x.lineWidth = 3; x.stroke();
       var fs = 78; do { x.font = '800 ' + fs + 'px ' + F; fs -= 4; } while (x.measureText(title).width > 800 && fs > 34);
       x.fillStyle = '#fff'; x.fillText(title, W / 2, cy + 104);
@@ -317,7 +326,7 @@ var SliskaSim = (function () {
         if (o.unit) { x.fillStyle = 'rgba(255,255,255,.88)'; x.font = '800 52px ' + F; x.fillText(String(o.unit).toUpperCase(), W / 2, cy + 490); }
       }
       /* stopka */
-      var fy = 1640; rr(W / 2 - 340, fy, 680, 104, 52); x.fillStyle = '#fff'; x.fill();
+      var fy = post ? 1120 : 1640; rr(W / 2 - 340, fy, 680, 104, 52); x.fillStyle = '#fff'; x.fill();
       x.fillStyle = c[0]; x.font = '800 44px ' + F; x.fillText('news.sliska.pl/gry', W / 2, fy + 68);
       x.fillStyle = 'rgba(255,255,255,.85)'; x.font = '700 36px ' + F; x.fillText('Dasz radę lepiej?', W / 2, fy + 168);
       return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/png'); });
@@ -326,12 +335,28 @@ var SliskaSim = (function () {
   function share(text, card) {
     var copy = function () { if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { toast('Skopiowano – wklej, gdzie chcesz'); }); else if (navigator.share) navigator.share({ text: text }).catch(function () {}); };
     if (!card) { if (navigator.share) navigator.share({ text: text }).catch(function () {}); else copy(); return; }
-    shareCard(card).then(function (blob) {
-      if (!blob) throw 0;
-      var f = window.File ? new File([blob], 'sliska-gry.png', { type: 'image/png' }) : null;
+    var send = function (blob, name) {
+      var f = window.File ? new File([blob], name, { type: 'image/png' }) : null;
       if (f && navigator.canShare && navigator.canShare({ files: [f] }) && navigator.share) return navigator.share({ files: [f], text: text }).catch(function (e) { if (!e || e.name !== 'AbortError') copy(); });
-      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sliska-gry.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
       copy();
+    };
+    /* dwa formaty: relacja na Instagram (9:16) i post (4:5) – użytkownik wybiera po podglądzie */
+    Promise.all([shareCard(card), shareCard(Object.assign({}, card, { fmt: 'post' }))]).then(function (bl) {
+      if (!bl[0] || !bl[1]) throw 0;
+      var urls = bl.map(function (b) { return URL.createObjectURL(b); });
+      var m = document.createElement('div'); m.className = 'sh-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Wybierz format grafiki');
+      m.innerHTML = '<div class="sh-box"><h3>Wybierz grafikę</h3><div class="sh-opts">'
+        + '<button type="button" class="sh-opt" data-i="0"><img src="' + urls[0] + '" alt="Podgląd relacji"><b>Relacja</b><small>Instagram Story 9:16</small></button>'
+        + '<button type="button" class="sh-opt" data-i="1"><img src="' + urls[1] + '" alt="Podgląd posta"><b>Post</b><small>Instagram / Facebook 4:5</small></button>'
+        + '</div><button type="button" class="btn sh-x">Anuluj</button></div>';
+      var close = function () { m.remove(); setTimeout(function () { urls.forEach(function (u) { URL.revokeObjectURL(u); }); }, 4000); };
+      m.addEventListener('click', function (e) {
+        var o = e.target.closest('.sh-opt');
+        if (o) { var i = +o.dataset.i; close(); send(bl[i], i ? 'sliska-gry-post.png' : 'sliska-gry-relacja.png'); return; }
+        if (e.target === m || e.target.closest('.sh-x')) close();
+      });
+      document.body.appendChild(m);
     }).catch(function () { if (navigator.share) navigator.share({ text: text }).catch(function () {}); else copy(); });
   }
   var LINK = 'https://news.sliska.pl/gry';
@@ -1676,6 +1701,6 @@ var SliskaSim = (function () {
       window.scrollTo(0, 0);
     },
     stop: stopAll,
-    best: best, fmt: fmt, games: GAMES, _t: window.__GRY_TEST ? { submit: submit, played: played } : null
+    best: best, fmt: fmt, games: GAMES, _t: window.__GRY_TEST ? { submit: submit, played: played, share: share } : null
   };
 })();
