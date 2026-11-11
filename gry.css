@@ -881,6 +881,187 @@ kbd { padding: 2px 7px; border: 1px solid var(--border); border-bottom-width: 3p
 .dv-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 2px;font-size:.85rem;border-bottom:1px solid rgba(128,128,128,.15);text-align:left}
 .dv-row b{opacity:.6;font-size:.78rem}.dv-row.is-on b{opacity:1;color:#c4102a}
 
+/* =====================================================================
+   POLISH – wspólny, dopracowany wygląd gier (telefon: nagłówek niższy, plansza i klawiatura mieszczą się na ekranie)
+   ===================================================================== */
+.gp .btn { border-radius: 14px; font-weight: 800; letter-spacing: .005em; transition: transform .12s ease, box-shadow .15s ease, filter .15s ease; }
+.gp .btn:active { transform: translateY(1px) scale(.985); }
+.gp .btn-primary { border: 0; color: #fff; background: linear-gradient(135deg, var(--g1), var(--g2)); box-shadow: 0 8px 20px color-mix(in srgb, var(--g1) 34%, transparent), inset 0 1px 0 rgba(255, 255, 255, .22); }
+.gp .btn-primary:hover { filter: brightness(1.06); }
+.gp-box { border-radius: 22px; box-shadow: 0 6px 22px rgba(20, 8, 30, .05); }
+.gp-box h3 { letter-spacing: -.01em; }
+.gh-tile { transition: transform .18s ease, box-shadow .18s ease; }
+.gh-tile:hover { transform: translateY(-3px); box-shadow: 0 16px 34px color-mix(in srgb, var(--g1) 40%, transparent); }
+.gh-tile:active { transform: scale(.98); }
+.gp :focus-visible, .gh-tile:focus-visible { outline: 3px solid color-mix(in srgb, var(--g2) 65%, #fff); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .gp-head { flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 2px 0 10px; padding: 10px 12px 12px; border-radius: 22px; }
+  .gp-head::before { width: 150px; height: 150px; right: -50px; top: -70px; border-width: 26px; }
+  .gp-back { width: 36px; height: 36px; border-radius: 12px; }
+  .gp-k { width: 54px; height: 54px; margin: -6px 0; }
+  .gp-t { gap: 2px; }
+  .gp-t h1 { font-size: 1.32rem; }
+  .gp-tag { font-size: .62rem; padding: 3px 9px; }
+  .gp-chips { order: 5; width: 100%; gap: 8px; }
+  .gp-chip { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 6px 12px; border-radius: 13px; }
+  .gp-chip small { font-size: .6rem; letter-spacing: .04em; }
+  .gp-chip b { font-size: 1rem; }
+
+  /* Ślizgle */
+  .sz { padding: 10px 8px 12px; border-radius: 22px; }
+  .sz-tabs { margin-bottom: 8px; padding: 4px; }
+  .sz-tabs button { padding: 6px 14px; }
+  .sz-board { gap: 6px; margin: 2px auto 8px; }
+  .sz-row { gap: 6px; grid-template-columns: repeat(var(--n), min(clamp(40px, calc((100svh - 470px) / 6), 58px), calc((100vw - 48px) / var(--n) - 6px))); }
+  .sz-c { border-radius: 11px; border-bottom-width: 4px; }
+  .sz-kb { gap: 6px; }
+  .sz-kr { gap: 5px; }
+  .sz-key { height: 46px; max-width: 42px; border-radius: 10px; font-size: .95rem; }
+  .sz-key.is-wide { max-width: 64px; }
+
+  /* Krzyżówka */
+  .kz-paper { padding: 14px 10px 16px; border-radius: 22px; }
+  .kz-head p { font-size: .88rem; }
+  .kz-act { position: sticky; bottom: 76px; z-index: 5; padding: 8px; margin: 10px -2px 0; border-radius: 16px; background: color-mix(in srgb, var(--surface) 90%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(20, 8, 30, .14); }
+
+  /* gry zręcznościowe */
+  .gry-stage, .gry-stage[style*="aspect-ratio"] { border-radius: 22px; }
+  .gm { padding: 20px 18px 18px; border-radius: 24px; }
+}
+@media (max-width: 640px) {
+  .sz { gap: 0; }
+  .sz-msg { min-height: 1.2em; margin: 4px 0 6px; font-size: .86rem; }
+  .sz-hint { margin-top: 6px; }
+}
+
+/* ---- okna „Start / Pauza / Koniec gry” zawsze mieszczą się w planszy (telefon): przewijanie + zwarty układ ---- */
+.gry-over { display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; overscroll-behavior: contain; }
+.gry-over > .gm { margin: auto; }
+@media (max-width: 640px) {
+  .gry-over { padding: 10px; }
+  .gm { width: min(340px, 100%); padding: 16px 16px 14px; border-radius: 22px; }
+  .gm::before { height: 70px; }
+  .gm-k { width: 78px; height: 78px; margin: -2px 0 0; }
+  .gm h2 { font-size: 1.3rem; margin-bottom: 2px; }
+  .gm-eye { font-size: .62rem; padding: 3px 9px; margin-bottom: 2px; }
+  .gm-end { margin: 0 0 4px; font-size: .84rem; line-height: 1.4; }
+  .gm-score { font-size: 2.9rem; margin: 0 0 2px; }
+  .gm-best, .gm-xp, .gm-note { margin: 0 0 2px; font-size: .78rem; }
+  .gm-keys { gap: 4px; margin: 2px 0 4px; }
+  .gm-keys span { font-size: .72rem; padding: 3px 7px; }
+  .gm-ach { margin: 4px 0 0; }
+  .gm-ach span { font-size: .72rem; padding: 4px 9px; }
+  .gm-acts { gap: 8px; margin-top: 8px; width: 100%; }
+  .gm-acts .btn { flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; }
+
+  /* Układanka */
+  .uk-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .uk-seg { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; }
+  .uk-seg button { padding: 8px 0; }
+  .uk-chip { text-align: center; padding: 6px 8px; }
+  .uk-acts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .uk-acts .btn { width: 100%; justify-content: center; }
+  .uk-frame { padding: 6px; border-radius: 18px; }
+  .uk-board { max-height: none; }
+}
+@media (max-width: 640px) {
+  .gm-keys span:not(:last-child) { display: none; }
+  .gm-k { width: 64px; height: 64px; }
+  .gm-end { font-size: .8rem; line-height: 1.35; }
+  .gm h2 { font-size: 1.2rem; }
+}
+
+/* ---- SZLIF v3: Ślizgle, krzyżówka, układanka ---- */
+.sz-c { border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 70%, var(--bg)), var(--bg)); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .55), 0 2px 6px rgba(0, 0, 0, .05); transition: transform .12s, box-shadow .2s; }
+.sz-c.sz-f { box-shadow: 0 0 0 3px color-mix(in srgb, var(--g1) 22%, transparent), 0 6px 14px rgba(0, 0, 0, .08); }
+.sz-ok, .sz-in, .sz-no { border-radius: 14px; text-shadow: 0 1px 0 rgba(0, 0, 0, .18); }
+.sz-ok { background: linear-gradient(160deg, #22c55e, #15803d) !important; border-color: #14803c !important; box-shadow: 0 6px 14px rgba(21, 128, 61, .35), inset 0 2px 0 rgba(255, 255, 255, .35) !important; }
+.sz-in { background: linear-gradient(160deg, #fbbf24, #d9930a) !important; border-color: #c07f00 !important; box-shadow: 0 6px 14px rgba(217, 147, 10, .32), inset 0 2px 0 rgba(255, 255, 255, .4) !important; }
+.sz-no { background: linear-gradient(160deg, #7b7590, #5a5470) !important; box-shadow: inset 0 2px 0 rgba(255, 255, 255, .18) !important; }
+.sz-key { box-shadow: 0 2px 0 rgba(0, 0, 0, .08), inset 0 1px 0 rgba(255, 255, 255, .6); }
+.sz-key.sz-ok { background: linear-gradient(160deg, #22c55e, #15803d) !important; color: #fff; }
+.sz-key.sz-in { background: linear-gradient(160deg, #fbbf24, #d9930a) !important; color: #fff; }
+.sz-key.sz-no { background: linear-gradient(160deg, #7b7590, #5a5470) !important; color: #fff; }
+.sz-end { border: 1px solid color-mix(in srgb, var(--g1) 18%, var(--border)); box-shadow: 0 10px 26px rgba(0, 0, 0, .07); }
+
+.kz-paper { background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--soft) 55%, var(--surface))); box-shadow: 0 14px 34px rgba(31, 36, 112, .10); border-color: color-mix(in srgb, var(--g1) 14%, var(--border)); }
+.kz-c { border-radius: 11px; background: linear-gradient(180deg, var(--surface), var(--bg)); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .6), 0 2px 4px rgba(0, 0, 0, .06); }
+.kz-c.is-h { background: linear-gradient(160deg, #ffe08a, #f5b324); border-color: #d99a00; color: #3a2800; box-shadow: 0 4px 10px rgba(245, 179, 36, .4), inset 0 2px 0 rgba(255, 255, 255, .5); }
+.kz-grid.is-done .kz-c.is-h { background: linear-gradient(160deg, #22c55e, #15803d); box-shadow: 0 4px 12px rgba(21, 128, 61, .4); }
+.kz-clues li { transition: background .15s, transform .15s; border: 1px solid transparent; }
+.kz-clues li:hover { transform: translateX(2px); }
+.kz-clues li b { background: linear-gradient(135deg, var(--g1), var(--g2)); box-shadow: 0 3px 8px color-mix(in srgb, var(--g1) 40%, transparent); }
+.kz-clues li.is-on { border-color: color-mix(in srgb, var(--g2) 35%, transparent); }
+
+.uk-frame { background: radial-gradient(120% 120% at 20% 0%, #5b3417, #25120a 70%); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .08), inset 0 10px 30px rgba(0, 0, 0, .35), 0 18px 36px rgba(122, 61, 0, .28); }
+.uk-t { border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2), 0 4px 10px rgba(0, 0, 0, .35); transition: transform .12s, box-shadow .2s; }
+.uk-t:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35), 0 8px 16px rgba(0, 0, 0, .4); }
+.uk-t i { backdrop-filter: blur(4px); background: rgba(20, 10, 4, .6); }
+.uk-t.is-ok i { background: linear-gradient(135deg, #22c55e, #15803d); }
+.uk-t.is-empty { background: rgba(0, 0, 0, .28); box-shadow: inset 0 3px 10px rgba(0, 0, 0, .5); }
+.uk-chip { background: linear-gradient(180deg, var(--surface), var(--soft)); box-shadow: 0 4px 10px rgba(0, 0, 0, .06); border: 1px solid var(--border); }
+.uk-seg button.is-on { background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; box-shadow: 0 6px 14px color-mix(in srgb, var(--g1) 40%, transparent); }
+.gry-stage { box-shadow: 0 20px 44px color-mix(in srgb, var(--g1) 30%, transparent), 0 0 0 1px rgba(255, 255, 255, .06); }
+
+/* =====================================================================
+   STUDIO v4 (jasny) – HUD, okna z gwiazdkami, przyciski 3D, kafelki z połyskiem
+   ===================================================================== */
+.gp-t h1, .gh-hero h1, .gh-feat b, .gh-tile b, .gm h2, .gm-score, .gh-h { font-family: 'Bricolage Grotesque', Figtree, sans-serif; letter-spacing: -.02em; }
+.gh-h { font-weight: 800; display: flex; align-items: center; gap: 10px; }
+.gh-h::before { content: ""; width: 6px; height: 22px; border-radius: 4px; background: linear-gradient(180deg, #ffcf4a, #ff4f8b); }
+.gp-k { padding: 0; }
+
+/* scena */
+.gry-stage { border: 0; border-radius: 26px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--g2) 70%, #fff), 0 0 0 6px color-mix(in srgb, var(--g1) 25%, transparent), 0 22px 44px color-mix(in srgb, var(--g1) 32%, transparent); }
+
+/* HUD: wynik na środku, życia po lewej, pauza po prawej */
+.gry-hud { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; top: 10px; left: 12px; right: 12px; }
+.gry-hud .hud-p:first-child { grid-column: 2; grid-row: 1; min-width: 0; padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; justify-items: center; text-align: center; }
+.gry-hud .hud-p:first-child small { font-size: .58rem; letter-spacing: .16em; color: #fff; -webkit-text-stroke: 3px rgba(20, 8, 30, .6); paint-order: stroke fill; }
+.gry-hud .hud-p:first-child b { font: 800 2.7rem/1 'Bricolage Grotesque', Figtree, sans-serif; color: #fff; letter-spacing: -.02em; -webkit-text-stroke: 5px rgba(20, 8, 30, .7); paint-order: stroke fill; text-shadow: 0 4px 0 rgba(0, 0, 0, .25); }
+.gry-hud .hud-p:nth-child(2) { grid-column: 1; grid-row: 1; justify-self: start; }
+.gry-hud .hud-btn { grid-column: 3; grid-row: 1; justify-self: end; width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .3); border-bottom-width: 3px; background: rgba(15, 8, 24, .6); }
+
+/* okna Start / Pauza / Koniec gry (jasne) */
+.gm { border: 1px solid color-mix(in srgb, var(--g1) 18%, var(--border)); border-radius: 30px; box-shadow: 0 30px 70px rgba(0, 0, 0, .45), 0 0 0 3px color-mix(in srgb, var(--g2) 35%, transparent); }
+.gm::before { inset: auto; left: 50%; top: -150px; width: 520px; height: 520px; margin-left: -260px; border-radius: 50%; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--g2) 18%, transparent) 0 7deg, transparent 7deg 22deg); -webkit-mask-image: radial-gradient(circle, #000 0, transparent 66%); mask-image: radial-gradient(circle, #000 0, transparent 66%); animation: gm-spin 48s linear infinite; }
+@keyframes gm-spin { to { transform: rotate(360deg); } }
+.gm-eye { padding: 4px 12px; background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 4px 12px color-mix(in srgb, var(--g2) 40%, transparent); }
+.gry-new { background: linear-gradient(135deg, #ffd45a, #ff9d2e); color: #3a2200; box-shadow: 0 6px 16px rgba(255, 157, 46, .4), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.gm-stars { display: flex; justify-content: center; align-items: flex-end; gap: 4px; margin: 2px 0 0; }
+.gm-stars span { display: block; width: 38px; height: 38px; }
+.gm-stars span:nth-child(2) { width: 50px; height: 50px; margin-bottom: 6px; }
+.gm-stars svg { width: 100%; height: 100%; fill: rgba(0, 0, 0, .07); stroke: rgba(0, 0, 0, .16); }
+.gm-stars .on svg { fill: #ffcf4a; stroke: #c98a00; filter: drop-shadow(0 3px 6px rgba(255, 170, 0, .55)); animation: star-in .55s cubic-bezier(.3, 1.6, .5, 1) var(--d) both; }
+@keyframes star-in { 0% { transform: scale(0) rotate(-40deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+
+/* przyciski „z wypukłością” */
+.gp .btn-primary, .gm-acts .btn-primary { min-height: 50px; border: 0 !important; border-bottom: 5px solid color-mix(in srgb, var(--g1) 60%, #000) !important; border-radius: 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--g2) 82%, #fff), var(--g2) 55%, var(--g1)) !important; color: #fff !important; font-weight: 900; letter-spacing: .03em; text-shadow: 0 2px 0 rgba(0, 0, 0, .22); box-shadow: 0 10px 20px color-mix(in srgb, var(--g2) 35%, transparent), inset 0 2px 0 rgba(255, 255, 255, .4) !important; transition: transform .1s, border-bottom-width .1s; }
+.gp .btn-primary:active, .gm-acts .btn-primary:active { transform: translateY(3px); border-bottom-width: 2px !important; }
+.gm-acts .btn:not(.btn-primary) { min-height: 46px; border-radius: 15px; border-bottom-width: 4px; font-weight: 800; }
+
+/* lista gier: połysk kafelków */
+.gh-tile, .gh-feat { border: 1px solid rgba(255, 255, 255, .25); box-shadow: 0 14px 28px color-mix(in srgb, var(--g1) 35%, transparent), inset 0 2px 0 rgba(255, 255, 255, .3), inset 0 -4px 0 rgba(0, 0, 0, .18); }
+.gh-tile::before { content: ""; position: absolute; inset: 0 0 45% 0; background: linear-gradient(180deg, rgba(255, 255, 255, .2), transparent); pointer-events: none; }
+.gh-tile-k { width: 146px; height: 146px; top: -12px; right: -12px; }
+.gh-tile small { max-width: 78%; }
+@media (max-width: 640px) {
+  .gry-hud .hud-p:first-child b { font-size: 2.3rem; }
+  .gm::before { top: -130px; width: 420px; height: 420px; margin-left: -210px; }
+  .gm-stars span { width: 32px; height: 32px; } .gm-stars span:nth-child(2) { width: 42px; height: 42px; }
+  .gh-tile-k { width: 118px; height: 118px; }
+}
+@media (max-width: 640px) { .gh-tile { min-height: 218px; } .gh-tile-k { width: 112px; height: 112px; top: -8px; right: -8px; } .gh-tile .gh-tag { max-width: 100%; } }
+
+/* korekta kafelków: czysty gradient, maskotka nad tekstem (bez nakładania) */
+.gh-tile::before { display: none; }
+.gh-tile, .gh-feat { border: 0; box-shadow: 0 12px 26px color-mix(in srgb, var(--g1) 30%, transparent); }
+.gh-tile { min-height: 268px; padding-top: 128px; }
+.gh-tile-k { width: 124px; height: 124px; top: 8px; right: 10px; }
+.gh-tile small { max-width: 100%; }
+@media (max-width: 640px) { .gh-tile { min-height: 236px; padding-top: 112px; } .gh-tile-k { width: 104px; height: 104px; top: 6px; right: 6px; } }
+
 /* Drama Simulator – przebudowa */
 .gh-tile.is-off { filter: grayscale(.85); opacity: .65; }
 .gp-off { max-width: 460px; margin: 28px auto; padding: 22px; text-align: center; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
