@@ -1080,3 +1080,7 @@ kbd { padding: 2px 7px; border: 1px solid var(--border); border-bottom-width: 3p
 .sh-x { margin-top: 14px; }
 .gp-ach li.is-hidden{opacity:.75}.gp-ach li.is-hidden b{letter-spacing:.12em}
 #gh-meta{margin-top:26px}#gh-meta .gh-h small{font-size:.6em;opacity:.65;font-weight:600;margin-left:6px}
+
+/* przycisk dźwięku obok pauzy */
+.gry-hud .hud-btn.gry-snd { margin-right: 54px; }
+.gry-hud .hud-btn.gry-snd[aria-pressed="false"] { opacity: .7; }
