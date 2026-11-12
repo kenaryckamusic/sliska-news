@@ -91,11 +91,11 @@
     if (DROPS[k]) return '';
     return k;
   }
-  /** Lista tagów: poprawione, bez duplikatów i bez śmieci (maks. 12). */
+  /** Lista tagów: poprawione, bez duplikatów i bez śmieci (bez limitu). */
   function normTags(list) {
     var seen = {}, out = [];
     (list || []).forEach(function (t) { var k = normTag(t); if (k && !seen[k]) { seen[k] = 1; out.push(k); } });
-    return out.slice(0, 12);
+    return out;
   }
   /** Kategorie artykułu po zmianie nazw (stare „Kontrowersje” → „Dramy”), bez duplikatów. */
   function normCats(list) {
