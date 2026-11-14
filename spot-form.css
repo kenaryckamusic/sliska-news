@@ -155,3 +155,31 @@ body.spf-lock { overflow: hidden; }
   .spf-actions .btn-primary { width: 100%; }
   .spf-modal-act .btn { flex: 1; }
 }
+
+/* v2: porządki na telefonie i trochę więcej szlifu */
+.spf-card { box-shadow: 0 1px 0 rgba(0, 0, 0, .02), 0 8px 24px rgba(15, 15, 25, .05); }
+.spf-slot { background: var(--surface); }
+.spf-slot-h .spf-badge { white-space: nowrap; }
+.spf-tabs { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); padding-right: 24px; }
+.spf-reuse { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; background: var(--soft); text-align: left; line-height: 1.35; }
+.spf-actions .btn-primary { box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 35%, transparent); }
+@media (max-width: 640px) {
+  .spf-hero { padding: 20px; margin-bottom: 14px; }
+  .spf-hero h1 { font-size: 1.9rem; }
+  .spf-perks li { font-size: .76rem; height: 30px; padding: 0 10px; }
+  .spf-card { border-radius: 18px; padding: 16px; }
+  .spf-slot { padding: 12px; }
+  .spf-slot-h { align-items: flex-start; flex-wrap: wrap; }
+  .spf-slot-t { flex-basis: calc(100% - 64px); }
+  .spf-slot-h .spf-badge { margin-left: 60px; }
+  .spf-drop { min-height: 92px; }
+  .spf-head { align-items: flex-start; }
+  .spf-seg { width: 100%; } .spf-seg button { flex: 1; padding: 8px 10px; }
+  .spf .pv { padding: 10px; border-radius: 12px; min-height: 0; }
+  .spf .pv-phone { max-width: 100%; }
+  .spf .pv-miss { min-height: 160px; }
+  .spf .pv-top { flex-direction: column; gap: 8px; }
+  .spf .pv-grid { grid-template-columns: 1fr; }
+  .spf-note { font-size: .78rem; }
+  .spf-todo li { font-size: .74rem; }
+}

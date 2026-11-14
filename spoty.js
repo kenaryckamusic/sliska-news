@@ -118,7 +118,7 @@
   function off() { return (document.body.classList.contains('is-admin') || document.body.classList.contains('is-staff')) && ls(true, OFF_KEY) === '1'; }
   function blocked() {
     var h = location.hash || '';
-    return !CFG.enabled || off() || /^#\/(panel|edytor|szkic|ustawienia|konto|gry\/)/.test(h) || document.body.classList.contains('modal-open');
+    return !CFG.enabled || off() || /^#\/(panel|edytor|szkic|ustawienia|konto|gry\/|spot|reklama|zglos)/.test(h) || document.body.classList.contains('modal-open');
   }
   function bindClose(el, done) {
     var x = el.querySelector('.sp-x');

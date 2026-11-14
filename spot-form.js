@@ -317,6 +317,7 @@
       el.innerHTML = '<div class="spf">' + shell() + '</div>';
       try { var dr = JSON.parse(localStorage.getItem('sliska_ad_draft') || '{}'); ids.forEach(function (k) { if (dr[k]) $('#spf-' + k).value = dr[k]; }); } catch (e) { /* ignoruj */ }
       bind(); account(); renderSlots();
+      if (window.innerWidth <= 640) { var pb = $('.spf-seg [data-dev="phone"]'); if (pb) pb.click(); }   // na telefonie od razu podgląd telefonu
     },
     /** po zalogowaniu / wylogowaniu – odśwież dane z konta, nie ruszając grafik */
     refreshUser: function () { if (root && root.isConnected && $('#spf-acct')) { account(); check(); } }

@@ -2324,39 +2324,100 @@ function renderTip() {
   TipShots.reset(); TipPhoto.reset();
   $('#view-tip').innerHTML = `
     <div class="article-top"><a class="btn btn-back" href="#/">${ICON('back', 17)}<span>Powrót do strony głównej</span></a></div>
-    <header class="rank-head">
-      <span class="rank-eyebrow">Redakcja</span>
-      <h1 class="rank-title">Zgłoś temat</h1>
-      <p class="rank-sub">Masz newsa, wskazówkę albo temat, o którym powinniśmy napisać? Podeślij go nam. Czytamy wszystkie zgłoszenia, ale nie możemy obiecać odpowiedzi ani publikacji.</p>
-    </header>
-    <form id="tip-form" class="panel tip-form" novalidate>
-      <input type="text" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <label class="field"><span class="field-label">Temat *</span>
-        <input type="text" id="tip-title" maxlength="120" placeholder="O czym jest sprawa? (krótko)" autocomplete="off"></label>
-      <label class="field"><span class="field-label">Opis *</span>
-        <textarea id="tip-message" rows="6" maxlength="2000" placeholder="Co się stało, kogo dotyczy, skąd o tym wiesz?"></textarea>
-        <small class="hint"><span id="tip-count">0</span>/2000</small></label>
-      <div class="field"><span class="field-label">Zdjęcie główne * <em class="tip-ratio">16:9</em></span>
-        <div class="tip-photo" id="tip-photo">
+    <div class="tf">
+      <header class="tf-hero">
+        <span class="tf-eyebrow">Redakcja</span>
+        <h1>Zgłoś temat</h1>
+        <p>Masz newsa, wskazówkę albo temat, o którym powinniśmy napisać? Podeślij go nam. Czytamy wszystkie zgłoszenia, ale nie możemy obiecać odpowiedzi ani publikacji.</p>
+        <ul class="tf-perks">
+          <li>${ICON('check', 14)}Czytamy każde zgłoszenie</li>
+          <li>${ICON('lock', 14)}Zrzuty widzi tylko redakcja</li>
+          <li>${ICON('inbox', 14)}Odpowiadamy mailem</li>
+        </ul>
+      </header>
+      <div class="tf-layout">
+        <form id="tip-form" class="tip-form tf-form" novalidate>
+          <input type="text" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <section class="panel tf-card">
+            <h2><i>1</i>Co się stało?</h2>
+            <label class="field"><span class="field-label">Temat *</span>
+              <input type="text" id="tip-title" maxlength="120" placeholder="O czym jest sprawa? (krótko)" autocomplete="off"></label>
+            <label class="field"><span class="field-label">Opis *</span>
+              <textarea id="tip-message" rows="6" maxlength="2000" placeholder="Co się stało, kogo dotyczy, skąd o tym wiesz?"></textarea>
+              <span class="tf-meter" aria-hidden="true"><i id="tip-meter"></i></span>
+              <small class="hint"><span id="tip-count">0</span>/2000</small></label>
+          </section>
+          <section class="panel tf-card">
+            <h2><i>2</i>Zdjęcie główne</h2>
+            <div class="field"><span class="field-label">Zdjęcie główne * <em class="tip-ratio">16:9</em></span>
+              <div class="tip-photo" id="tip-photo">
           <label class="tip-photo-empty" id="tip-photo-pick">${ICON('plus', 22)}<b>Dodaj zdjęcie główne</b><small class="tip-drop-txt">albo przeciągnij je tutaj</small><small>Poziome, w formacie 16:9 – np. 1600×900 px. Inne kadrujemy do 16:9.</small><input type="file" id="tip-photo-file" accept="image/jpeg,image/png,image/webp" hidden></label>
           <div class="tip-photo-crop" id="tip-photo-crop" hidden><img id="tip-photo-img" alt="Zdjęcie główne – podgląd kadru 16:9" draggable="false"><span class="tip-photo-hint">Przeciągnij, aby ustawić kadr</span></div>
         </div>
         <div class="tip-photo-actions" id="tip-photo-actions" hidden><label class="btn btn-sm">Zmień zdjęcie<input type="file" id="tip-photo-file2" accept="image/jpeg,image/png,image/webp" hidden></label><button type="button" class="btn btn-sm" id="tip-photo-del">Usuń</button></div>
         <small class="hint">Wymagane. Może trafić na górę artykułu – wyślij tylko zdjęcie, do którego masz prawa lub zgodę autora.</small></div>
-      <label class="field"><span class="field-label">Link do źródła (opcjonalnie)</span>
-        <input type="text" id="tip-link" maxlength="300" inputmode="url" placeholder="https://…" autocomplete="off"></label>
-      <div class="field"><span class="field-label">Zrzuty ekranu (opcjonalnie, do 4)</span>
-        <div class="tip-shots" id="tip-shots"></div>
+          </section>
+          <section class="panel tf-card">
+            <h2><i>3</i>Dowody <small>opcjonalnie</small></h2>
+            <label class="field"><span class="field-label">Link do źródła</span>
+              <input type="text" id="tip-link" maxlength="300" inputmode="url" placeholder="https://…" autocomplete="off"></label>
+            <div class="field"><span class="field-label">Zrzuty ekranu (do 4)</span>
+              <div class="tip-shots" id="tip-shots"></div>
         <label class="btn tip-shot-add" id="tip-shot-add">${ICON('plus', 17)}<span>Dodaj zrzut ekranu</span><input type="file" id="tip-shot-file" accept="image/*" multiple hidden></label>
         <small class="hint">Zrzuty widzi tylko redakcja. Zasłoń dane, których nie chcesz pokazywać.</small></div>
-      <label class="field"><span class="field-label">Twój e-mail *</span>
-        <input type="text" id="tip-email" maxlength="120" inputmode="email" placeholder="na ten adres odpiszemy" autocomplete="email">
-        <small class="hint">Wymagany – na ten adres redakcja może odpowiedzieć.</small></label>
-      <label class="check"><input type="checkbox" id="tip-consent">
-        <span>Wyrażam zgodę na przetwarzanie podanych danych w celu rozpatrzenia zgłoszenia. Szczegóły w <a href="#/prywatnosc">Polityce prywatności</a>. *</span></label>
-      <p class="form-error" id="tip-error" hidden></p>
-      <div><button type="submit" class="btn btn-primary" id="tip-send">Wyślij zgłoszenie</button></div>
-    </form>`;
+          </section>
+          <section class="panel tf-card">
+            <h2><i>4</i>Kontakt i wysyłka</h2>
+            <label class="field"><span class="field-label">Twój e-mail *</span>
+              <input type="text" id="tip-email" maxlength="120" inputmode="email" placeholder="na ten adres odpiszemy" autocomplete="email">
+              <small class="hint">Wymagany – na ten adres redakcja może odpowiedzieć.</small></label>
+            <label class="check"><input type="checkbox" id="tip-consent">
+              <span>Wyrażam zgodę na przetwarzanie podanych danych w celu rozpatrzenia zgłoszenia. Szczegóły w <a href="#/prywatnosc">Polityce prywatności</a>. *</span></label>
+            <ul class="tf-todo" id="tip-todo" aria-live="polite"></ul>
+            <p class="form-error" id="tip-error" hidden></p>
+            <div class="tf-actions"><button type="submit" class="btn btn-primary" id="tip-send">Wyślij zgłoszenie</button></div>
+          </section>
+        </form>
+        <aside class="tf-aside" aria-label="Wskazówki">
+          <div class="panel tf-side">
+            <h3>Jak to działa</h3>
+            <ol class="tf-steps">
+              <li><b>Wysyłasz zgłoszenie</b><span>Trafia prosto do redakcji, nikt inny go nie widzi.</span></li>
+              <li><b>Sprawdzamy temat</b><span>Weryfikujemy fakty i źródła, czasem dopytamy mailem.</span></li>
+              <li><b>Publikujemy lub odpisujemy</b><span>Nie każdy temat opiszemy, ale każdy czytamy.</span></li>
+            </ol>
+          </div>
+          <div class="panel tf-side">
+            <h3>Co nam pomaga</h3>
+            <ul class="tf-tips">
+              <li>Konkretne fakty: kto, co, kiedy i gdzie.</li>
+              <li>Link do źródła lub zrzut ekranu.</li>
+              <li>Zdjęcie poziome, najlepiej 1600×900 px.</li>
+              <li>Prawdziwy e-mail, żebyśmy mogli odpisać.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>`;
+  tipProgress();
+  try {
+    const crop = $('#tip-photo-crop');
+    if (crop && window.MutationObserver) new MutationObserver(tipProgress).observe(crop, { attributes: true, attributeFilter: ['hidden'] });
+    const sh = $('#tip-shots'); if (sh && window.MutationObserver) new MutationObserver(tipProgress).observe(sh, { childList: true });
+  } catch { /* ignoruj */ }
+}
+
+/** Pasek „co jeszcze trzeba uzupełnić” pod formularzem zgłoszenia. */
+function tipProgress() {
+  const box = $('#tip-todo'); if (!box) return;
+  const v = id => { const e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; };
+  const crop = $('#tip-photo-crop'), cons = $('#tip-consent');
+  const items = [
+    ['Temat', !!v('tip-title')], ['Opis', !!v('tip-message')],
+    ['Zdjęcie główne', !!(crop && !crop.hidden)], ['E-mail', /.+@.+\..+/.test(v('tip-email'))], ['Zgoda', !!(cons && cons.checked)]
+  ];
+  box.innerHTML = items.map(([t, ok]) => `<li class="${ok ? 'is-ok' : ''}"><i></i>${t}</li>`).join('');
+  const m = $('#tip-meter'); if (m) m.style.width = Math.min(100, Math.round(v('tip-message').length / 20)) + '%';
 }
 
 /** Zrzuty do zgłoszenia: zmniejszane w przeglądarce (do 1600 px, JPEG), wysyłane jako pliki przed samym zgłoszeniem. */
@@ -4464,6 +4525,8 @@ function bindEvents() {
   // Zgłoszenia: formularz jest rysowany dynamicznie
   $('#view-tip').addEventListener('submit', e => { if (e.target.id === 'tip-form') submitTip(e); });
   $('#view-tip').addEventListener('input', e => { if (e.target.id === 'tip-message') $('#tip-count').textContent = e.target.value.length; });
+  $('#view-tip').addEventListener('input', tipProgress);
+  $('#view-tip').addEventListener('change', tipProgress);
 
   // Galeria w artykule (podgląd zdjęć)
   document.addEventListener('click', galleryClick);
