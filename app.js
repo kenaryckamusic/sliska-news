@@ -460,10 +460,19 @@ const ApiProvider = {
   last: '',
   async init() {},
   async _fetch() {
-    const r = await fetch(CONFIG.API_BASE + '/articles?limit=' + CONFIG.MAX_ARTICLES, { cache: 'no-store' });
-    if (!r.ok) throw new Error('Nie udało się pobrać artykułów (HTTP ' + r.status + ').');
-    const d = await r.json();
-    return Array.isArray(d.articles) ? d.articles : [];
+    /* limit czasu i 3 próby: chwilowe zawieszenie połączenia nie zostawia strony na „Ładowanie…” */
+    let lastErr;
+    for (let n = 1; n <= 3; n++) {
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null, to = setTimeout(() => { if (ctl) ctl.abort(); }, 12000);
+      try {
+        const r = await fetch(CONFIG.API_BASE + '/articles?limit=' + CONFIG.MAX_ARTICLES, { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+        clearTimeout(to);
+        if (!r.ok) throw new Error('Nie udało się pobrać artykułów (HTTP ' + r.status + ').');
+        const d = await r.json();
+        return Array.isArray(d.articles) ? d.articles : [];
+      } catch (e) { clearTimeout(to); lastErr = e; if (n < 3) await new Promise(res => setTimeout(res, 800 * n)); }
+    }
+    throw lastErr;
   },
   async watch(onChange) {
     const list = await this._fetch();
@@ -3276,7 +3285,7 @@ const Readers = {
   async resend() { await this.sendVerify(true); },
   async refresh() { if (!this.user) return; await this.user.reload(); await this.user.getIdToken(true); await this.loadMe(); this.render(); },
   async saveName(name) { this.me = await this.api('/me', { method: 'POST', body: JSON.stringify({ name }) }); this.render(); },
-  async saveBadge(v) { this.me = await this.api('/me', { method: 'POST', body: JSON.stringify({ nobadge: !!v }) }); this.render(); },
+  async saveBadge(v, c) { const b = {}; if (v !== undefined) b.nobadge = !!v; if (c !== undefined) b.nocrown = !!c; this.me = await this.api('/me', { method: 'POST', body: JSON.stringify(b) }); this.render(); },
   async saveBio(bio) { this.me = await this.api('/me', { method: 'POST', body: JSON.stringify({ bio }) }); this.render(); },
   async saveAvatar(dataUrl) { this.me = await this.api('/me', { method: 'POST', body: JSON.stringify({ avatar: dataUrl || null }) }); this.render(); },
   render() {
@@ -3819,6 +3828,7 @@ function renderAccount() {
         <label class="field"><span class="field-label">Krótka biografia <small class="hint" id="acc-bio-n">${Array.from(me.bio || '').length}/150</small></span>
           <textarea id="acc-bio" rows="3" maxlength="150" placeholder="Kilka słów o sobie – zobaczą je inni na Twoim profilu publicznym.">${Utils.esc(me.bio || '')}</textarea></label>
         ${['editor', 'chief', 'owner'].includes(me.role) ? `<label class="check"><input type="checkbox" id="acc-nobadge" ${me.nobadge ? 'checked' : ''}> <span>Ukryj moją plakietkę (${Utils.esc(ROLE_LABEL[me.role] || 'Redaktor')}) w komentarzach i na profilu</span></label>` : ''}
+        ${me.crown ? `<label class="check"><input type="checkbox" id="acc-nocrown" ${me.nocrown ? 'checked' : ''}> <span>Ukryj moją plakietkę (Moderator) w komentarzach i na profilu</span></label>` : ''}
         <div class="st-actions"><button type="button" class="btn btn-primary" id="acc-save">Zapisz profil</button></div>
         <p class="form-error" id="acc-error" hidden></p>
       </section>
@@ -3826,6 +3836,7 @@ function renderAccount() {
       </div>
       <div class="acc-col">
       ${Accounts.html()}
+      ${ownerPushHtml(me)}
       ${staffAdsHtml(me)}
             <section class="panel st-card">
         <div class="st-head"><h2 class="st-h">Logowanie i bezpieczeństwo</h2><p class="st-sub">Adres e-mail, hasło i aktywne sesje.</p></div>
@@ -3837,12 +3848,41 @@ function renderAccount() {
       </section>
       </div>
     </div>`}`;
+  ownerPushSync();
   if (tab === 'komentarze') renderModComments($('#acc-mod'), false);
   else if (window.SnXP) SnXP.loadMe().then(d => { const b = $('#acc-xp'); if (b && d) b.innerHTML = SnXP.card(d, true); });
 }
 
 /** Przełącznik „bez reklam na tym urządzeniu” – jedyna funkcja redakcji dostępna także na stronie publicznej (dla kont z rangą). */
 const STAFF_ROLES = ['editor', 'chief', 'owner'];
+/** Powiadomienia push na telefon – tylko Właściciel (nowy temat, reklama, zgłoszenie, poczta). */
+function ownerPushHtml(me) {
+  if (!me || me.role !== 'owner') return '';
+  return `<section class="panel st-card"><div class="st-head"><h2 class="st-h">Powiadomienia na telefon</h2><p class="st-sub">Tylko dla Właściciela: nowy temat, reklama, zgłoszenie, wiadomość na redakcja@.</p></div>
+    <label class="st-switch"><span><b>Powiadamiaj to urządzenie</b><small id="acc-push-owner-s">Sprawdzam…</small></span><input type="checkbox" id="acc-push-owner" disabled></label></section>`;
+}
+async function ownerPushSync() {
+  const c = document.getElementById('acc-push-owner'), s = document.getElementById('acc-push-owner-s');
+  if (!c) return;
+  if (!Push.supported()) {
+    s.textContent = Push.isIos() && !Push.standalone() ? 'iPhone: Udostępnij → „Do ekranu początkowego”, otwórz stronę z ikony i wróć tutaj.' : 'Ta przeglądarka nie obsługuje powiadomień.';
+    return;
+  }
+  const on = Notification.permission === 'granted' && !!(await Push.sub());
+  c.checked = on; c.disabled = false;
+  s.textContent = on ? 'Włączone na tym urządzeniu.' : 'Wyłączone na tym urządzeniu.';
+  if (on) Push.link();
+}
+document.addEventListener('change', async e => {
+  if (!e.target || e.target.id !== 'acc-push-owner') return;
+  const c = e.target; c.disabled = true;
+  try {
+    if (c.checked) { await Push.enable(); await Push.link(); toast('Gotowe! Powiadomienia właściciela włączone.'); }
+    else { await Push.disable(); toast('Powiadomienia wyłączone.'); }
+  } catch (err) { toast(err.message || 'Nie udało się zmienić powiadomień.', 'error'); }
+  ownerPushSync();
+});
+
 function staffAdsHtml(me) {
   if (!me || !(STAFF_ROLES.includes(me.role) || me.crown)) return '';
   let on = false; try { on = localStorage.getItem('sliska_ads_off') === '1'; } catch { /* ignoruj */ }
@@ -3936,7 +3976,7 @@ function bindReaderEvents() {
         const nm = $('#acc-name'), bio = ($('#acc-bio').value || '').trim().replace(/\s+/g, ' ').slice(0, 150);
         if (nm && !nm.disabled && nm.value.trim() !== ((Readers.me && Readers.me.name) || '')) await Readers.saveName(nm.value.trim());
         if (bio !== ((Readers.me && Readers.me.bio) || '')) await Readers.saveBio(bio);
-        { const nb = $('#acc-nobadge'); if (nb && nb.checked !== !!(Readers.me && Readers.me.nobadge)) await Readers.saveBadge(nb.checked); }
+        { const nb = $('#acc-nobadge'), nc = $('#acc-nocrown'), m0 = Readers.me || {}; const dv = nb && nb.checked !== !!m0.nobadge, dc = nc && nc.checked !== !!m0.nocrown; if (dv || dc) await Readers.saveBadge(dv ? nb.checked : undefined, dc ? nc.checked : undefined); }
         toast('Profil zapisany.');
       } catch (ex) { er.textContent = readerErr(ex); er.hidden = false; }
     } else if (e.target.id === 'acc-avatar-remove') { try { await Readers.saveAvatar(null); toast('Zdjęcie usunięte.'); } catch (ex) { toast(readerErr(ex), 'error'); } }
